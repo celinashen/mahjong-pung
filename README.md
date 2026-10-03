@@ -2,6 +2,8 @@
 
 A mobile-first mahjong score calculator for **Hong Kong** and **Chinese Official (MCR)** rules.
 
+**Live:** https://playpung.vercel.app — deployed on Vercel. Merges to `main` go to production; PRs get preview deployments.
+
 ```sh
 npm install
 npm run dev     # http://localhost:5173
