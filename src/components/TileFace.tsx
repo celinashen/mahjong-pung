@@ -1,4 +1,5 @@
-import { BONUS, Bonus, Tile, isSuited, isWind, rankOf, suitOf, tileName } from '../engine';
+import { BONUS, Bonus, Tile, isSuited, isWind, rankOf, suitOf, tileLabel } from '../engine';
+import { useLang } from '../i18n';
 
 // Tile faces are drawn as SVG on a 60×80 canvas so they look like real tiles
 // (dot circles, bamboo sticks, 萬 characters) at any size. A small index in the
@@ -149,8 +150,9 @@ interface Props {
 }
 
 export function TileFace({ tile, size = 'md', highlight }: Props) {
+  const { lang } = useLang();
   return (
-    <span className={`tile tile-${size}${highlight ? ' tile-win' : ''}`} role="img" aria-label={tileName(tile)}>
+    <span className={`tile tile-${size}${highlight ? ' tile-win' : ''}`} role="img" aria-label={tileLabel(tile, lang)}>
       <svg viewBox="0 0 60 80" aria-hidden>{faceFor(tile)}</svg>
     </span>
   );
@@ -159,10 +161,11 @@ export function TileFace({ tile, size = 'md', highlight }: Props) {
 const BONUS_COLOR = ['#d6457a', '#8a4fc2', '#c98a12', '#1f8a5b', '#1f8a5b', '#a20000', '#d9711c', '#1f5fb4'];
 
 export function BonusFace({ bonus, size = 'md', active }: { bonus: Bonus; size?: 'sm' | 'md'; active?: boolean }) {
+  const { lang } = useLang();
   const b = BONUS[bonus];
   const color = BONUS_COLOR[bonus];
   return (
-    <span className={`tile tile-${size}${active === false ? ' tile-off' : ''}`} role="img" aria-label={`${b.en} (${b.n})`}>
+    <span className={`tile tile-${size}${active === false ? ' tile-off' : ''}`} role="img" aria-label={lang === 'zh' ? `${b.zh}（${b.n}）` : `${b.en} (${b.n})`}>
       <svg viewBox="0 0 60 80" aria-hidden>
         <circle cx={30} cy={44} r={20} fill={color} opacity={0.12} />
         <Han ch={b.zh} y={44} size={34} color={color} />

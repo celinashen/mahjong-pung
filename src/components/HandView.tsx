@@ -1,9 +1,14 @@
 import { useState } from 'react';
 import { Meld } from '../engine';
+import { useLang } from '../i18n';
 import { Action, HandState, hiddenCount, hiddenNeeded } from '../state';
+import { Bi } from './Bi';
 import { BonusFace, TileFace } from './TileFace';
 
-const MELD_LABEL = { chow: 'Chow', pung: 'Pung', kong: 'Kong' } as const;
+const MELD_LABEL = {
+  en: { chow: 'Chow', pung: 'Pung', kong: 'Kong', hidden: 'Hidden kong' },
+  zh: { chow: '上', pung: '碰', kong: '明槓', hidden: '暗槓' },
+} as const;
 
 function meldTiles(m: Meld) {
   if (m.kind === 'chow') return [m.tile, m.tile + 1, m.tile + 2];
@@ -11,14 +16,16 @@ function meldTiles(m: Meld) {
 }
 
 function MeldView({ meld, onRemove }: { meld: Meld; onRemove: () => void }) {
+  const { lang, tx } = useLang();
+  const labels = MELD_LABEL[lang];
   return (
     <div className="meld">
       <div className="meld-tiles">
         {meldTiles(meld).map((t, k) => <TileFace key={k} tile={t} size="sm" />)}
       </div>
       <div className="meld-label">
-        {meld.kind === 'kong' && meld.concealed ? 'Hidden kong' : MELD_LABEL[meld.kind]}
-        <button className="x" aria-label="Remove set" onClick={onRemove}>×</button>
+        {meld.kind === 'kong' && meld.concealed ? labels.hidden : labels[meld.kind]}
+        <button className="x" aria-label={tx('Remove set', '刪除這組')} onClick={onRemove}>×</button>
       </div>
     </div>
   );
@@ -33,6 +40,7 @@ interface Props {
 type Sel = number | 'win';
 
 export function HandView({ hand, dispatch }: Props) {
+  const { tx } = useLang();
   const [selected, setSelected] = useState<Sel[]>([]);
   const count = hiddenCount(hand) + hand.melds.length * 3;
   const sorted = hand.tiles.map((tile, index) => ({ tile, index })).sort((a, b) => a.tile - b.tile);
@@ -61,19 +69,19 @@ export function HandView({ hand, dispatch }: Props) {
   };
 
   return (
-    <section className="card hand-card" aria-label="Your hand">
+    <section className="card hand-card" aria-label={tx('Your hand', '手牌')}>
       <div className="card-head">
-        <h2>Your hand <span className="zh-sub">手牌</span></h2>
+        <h2><Bi en="Your hand" zh="手牌" /></h2>
         <span className={`count ${count === 14 ? 'count-full' : ''}`}>{count}<small>/14</small></span>
       </div>
 
       <div className="zone zone-revealed">
         <div className="zone-head">
-          <span className="zone-tag tag-revealed">Revealed 明</span>
-          <span className="zone-desc">Sets you claimed from other players</span>
+          <span className="zone-tag tag-revealed">{tx('Revealed 明', '明牌')}</span>
+          <span className="zone-desc">{tx('Sets you claimed from other players', '從其他人上、碰、槓回來的牌組')}</span>
         </div>
         {revealed.length === 0 ? (
-          <p className="zone-empty">None — use <b>Chow / Pung / Kong</b> below for claimed sets.</p>
+          <p className="zone-empty">{tx('None — use Chow / Pung / Kong below for claimed sets.', '沒有 —— 用下面的「上／碰／槓」加入明牌。')}</p>
         ) : (
           <div className="melds">
             {revealed.map(({ m, i }) => <MeldView key={i} meld={m} onRemove={() => removeMeld(i)} />)}
@@ -83,8 +91,8 @@ export function HandView({ hand, dispatch }: Props) {
 
       <div className="zone zone-concealed">
         <div className="zone-head">
-          <span className="zone-tag tag-concealed">Concealed 暗</span>
-          <span className="zone-desc">Tiles only you can see</span>
+          <span className="zone-tag tag-concealed">{tx('Concealed 暗', '暗牌')}</span>
+          <span className="zone-desc">{tx('Tiles only you can see', '只有你看得到的牌')}</span>
         </div>
 
         {hiddenKongs.length > 0 && (
@@ -94,7 +102,7 @@ export function HandView({ hand, dispatch }: Props) {
         )}
 
         {hand.tiles.length === 0 && hand.winning === null ? (
-          <p className="zone-empty">Tap tiles below with <b>Tile</b> selected to add them here.</p>
+          <p className="zone-empty">{tx('Tap tiles below with Tile selected to add them here.', '選「單張」後點下面的牌，加到這裡。')}</p>
         ) : (
           <div className="hidden-row">
             <div className="hidden-tiles">
@@ -118,35 +126,35 @@ export function HandView({ hand, dispatch }: Props) {
                 >
                   <TileFace tile={hand.winning} highlight />
                 </button>
-                <span className="win-label">Winning</span>
+                <span className="win-label">{tx('Winning', '和牌')}</span>
               </div>
             )}
           </div>
         )}
 
         {full && hand.winning === null && (
-          <p className="hint warn">Select the tile you won on, then tap <b>★ Winning tile</b>.</p>
+          <p className="hint warn">{tx('Select the tile you won on, then tap ★ Winning tile.', '選出你和的那張牌，再按「★ 和牌張」。')}</p>
         )}
       </div>
 
       {selected.length > 0 && (
-        <div className="tile-actions" role="toolbar" aria-label="Selected tiles">
-          <span className="sel-count">{selected.length} selected</span>
+        <div className="tile-actions" role="toolbar" aria-label={tx('Selected tiles', '已選的牌')}>
+          <span className="sel-count">{tx(`${selected.length} selected`, `已選 ${selected.length} 張`)}</span>
           {selected.length === 1 && selected[0] !== 'win' && (
-            <button className="chip chip-gold" onClick={makeWinning}>★ Winning tile</button>
+            <button className="chip chip-gold" onClick={makeWinning}>{tx('★ Winning tile', '★ 和牌張')}</button>
           )}
           <button className="chip chip-danger" onClick={removeSelected}>
-            Remove{selected.length > 1 ? ` ${selected.length}` : ''}
+            {tx('Remove', '刪除')}{selected.length > 1 ? ` ${selected.length}` : ''}
           </button>
-          <button className="chip chip-ghost" onClick={() => setSelected([])}>Clear</button>
+          <button className="chip chip-ghost" onClick={() => setSelected([])}>{tx('Clear', '取消')}</button>
         </div>
       )}
 
       {hand.flowers.length > 0 && (
         <div className="flower-row">
-          <span className="zone-tag tag-bonus">Flowers 花</span>
+          <span className="zone-tag tag-bonus">{tx('Flowers 花', '花牌')}</span>
           {hand.flowers.map((b) => (
-            <button key={b} className="tile-btn" aria-label="Remove flower" onClick={() => dispatch({ type: 'toggleFlower', bonus: b })}>
+            <button key={b} className="tile-btn" aria-label={tx('Remove flower', '刪除花牌')} onClick={() => dispatch({ type: 'toggleFlower', bonus: b })}>
               <BonusFace bonus={b} size="sm" />
             </button>
           ))}

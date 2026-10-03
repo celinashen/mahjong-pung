@@ -26,9 +26,12 @@ npm run build
 9. Multi-select tiles in your hand to remove several at once.
 10. "How to play" sheet (the ? button): TL;DR, set-up, turns, claiming, scoring and payment,
     plus the full scoring list for each variant (generated from the engine's tables).
+11. English / Traditional Chinese toggle (EN / 中 in the top bar): UI, scoring explanations,
+    payouts and the rulebook. Labels show the other language as a small subtitle. Remembered
+    across reloads; first visit follows the phone's language.
 
 ### P2 (planned)
-1. English / Chinese language toggle.
+1. ~~English / Chinese language toggle~~ (done)
 2. Accounts and sign-in.
 3. Friends: add and remove.
 4. Groups: create, leave.

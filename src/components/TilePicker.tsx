@@ -1,23 +1,39 @@
 import { ALL_BONUS, SUITS, Tile } from '../engine';
+import { useLang } from '../i18n';
 import { Action, HandState, PickMode, canPick, remaining } from '../state';
+import { Bi } from './Bi';
 import { BonusFace, TileFace } from './TileFace';
 
-const GROUPS: Array<{ kind: 'concealed' | 'revealed'; label: string; modes: Array<{ mode: PickMode; label: string }> }> = [
-  { kind: 'concealed', label: 'Concealed 暗', modes: [{ mode: 'tile', label: 'Tile' }, { mode: 'ckong', label: 'Kong' }] },
-  { kind: 'revealed', label: 'Revealed 明', modes: [{ mode: 'chow', label: 'Chow' }, { mode: 'pung', label: 'Pung' }, { mode: 'kong', label: 'Kong' }] },
+type Text = { en: string; zh: string };
+
+const GROUPS: Array<{ kind: 'concealed' | 'revealed'; label: Text; modes: Array<{ mode: PickMode; label: Text }> }> = [
+  {
+    kind: 'concealed',
+    label: { en: 'Concealed 暗', zh: '暗牌' },
+    modes: [{ mode: 'tile', label: { en: 'Tile', zh: '單張' } }, { mode: 'ckong', label: { en: 'Kong', zh: '暗槓' } }],
+  },
+  {
+    kind: 'revealed',
+    label: { en: 'Revealed 明', zh: '明牌' },
+    modes: [
+      { mode: 'chow', label: { en: 'Chow', zh: '上' } },
+      { mode: 'pung', label: { en: 'Pung', zh: '碰' } },
+      { mode: 'kong', label: { en: 'Kong', zh: '明槓' } },
+    ],
+  },
 ];
 
-const MODE_HINT: Record<PickMode, string> = {
-  tile: 'Adds one tile to the concealed part of your hand.',
-  ckong: 'Four of a kind you declared from your own hand. Your hand stays concealed.',
-  chow: 'A run you claimed from the player before you. Tap its lowest tile (3 → 3-4-5).',
-  pung: 'Three of a kind you claimed from a discard.',
-  kong: 'Four of a kind you claimed, or a pung you upgraded.',
+const MODE_HINT: Record<PickMode, Text> = {
+  tile: { en: 'Adds one tile to the concealed part of your hand.', zh: '加一張牌到你的暗牌。' },
+  ckong: { en: 'Four of a kind you declared from your own hand. Your hand stays concealed.', zh: '自己摸齊四張後開的槓，手牌仍算門前清。' },
+  chow: { en: 'A run you claimed from the player before you. Tap its lowest tile (3 → 3-4-5).', zh: '從上家上回來的順子。點最小的一張（三 → 三四五）。' },
+  pung: { en: 'Three of a kind you claimed from a discard.', zh: '碰別人打出的牌組成的刻子。' },
+  kong: { en: 'Four of a kind you claimed, or a pung you upgraded.', zh: '槓別人打出的牌，或碰後加槓。' },
 };
 
-const ROWS: Array<{ label: string; zh: string; tiles: Tile[] }> = [
-  ...SUITS.map((s, i) => ({ label: s.en, zh: s.zh, tiles: Array.from({ length: 9 }, (_, r) => i * 9 + r) })),
-  { label: 'Honours', zh: '字', tiles: [27, 28, 29, 30, 31, 32, 33] },
+const ROWS: Array<{ label: Text; tiles: Tile[] }> = [
+  ...SUITS.map((s, i) => ({ label: { en: s.en, zh: `${s.zh}子` }, tiles: Array.from({ length: 9 }, (_, r) => i * 9 + r) })),
+  { label: { en: 'Honours', zh: '字牌' }, tiles: [27, 28, 29, 30, 31, 32, 33] },
 ];
 
 interface Props {
@@ -27,18 +43,19 @@ interface Props {
 }
 
 export function TilePicker({ hand, mode, dispatch }: Props) {
+  const { lang, tx } = useLang();
   const left = remaining(hand);
   return (
-    <section className="card" aria-label="Add tiles">
+    <section className="card" aria-label={tx('Add tiles', '選牌')}>
       <div className="card-head">
-        <h2>Add tiles <span className="zh-sub">選牌</span></h2>
+        <h2><Bi en="Add tiles" zh="選牌" /></h2>
       </div>
 
       <div className="mode-groups">
         {GROUPS.map((g) => (
           <div key={g.kind} className={`mode-group group-${g.kind}`}>
-            <div className={`zone-tag tag-${g.kind}`}>{g.label}</div>
-            <div className="segmented" role="radiogroup" aria-label={g.label}>
+            <div className={`zone-tag tag-${g.kind}`}>{g.label[lang]}</div>
+            <div className="segmented" role="radiogroup" aria-label={g.label[lang]}>
               {g.modes.map((m) => (
                 <button
                   key={m.mode}
@@ -47,18 +64,18 @@ export function TilePicker({ hand, mode, dispatch }: Props) {
                   className={mode === m.mode ? 'on' : ''}
                   onClick={() => dispatch({ type: 'mode', mode: m.mode })}
                 >
-                  {m.label}
+                  {m.label[lang]}
                 </button>
               ))}
             </div>
           </div>
         ))}
       </div>
-      <p className={`mode-hint hint-${mode === 'tile' || mode === 'ckong' ? 'concealed' : 'revealed'}`}>{MODE_HINT[mode]}</p>
+      <p className={`mode-hint hint-${mode === 'tile' || mode === 'ckong' ? 'concealed' : 'revealed'}`}>{MODE_HINT[mode][lang]}</p>
 
       {ROWS.map((row) => (
-        <div className="pick-row" key={row.label}>
-          <div className="row-label">{row.label} <span className="zh-sub">{row.zh}</span></div>
+        <div className="pick-row" key={row.label.en}>
+          <div className="row-label"><Bi en={row.label.en} zh={row.label.zh} /></div>
           <div className={`pick-grid ${row.tiles.length === 7 ? 'honors' : ''}`}>
             {row.tiles.map((t) => {
               const ok = canPick(hand, mode, t);
@@ -74,7 +91,7 @@ export function TilePicker({ hand, mode, dispatch }: Props) {
       ))}
 
       <div className="pick-row">
-        <div className="row-label">Flowers & seasons <span className="zh-sub">花</span></div>
+        <div className="row-label"><Bi en="Flowers & seasons" zh="花季" /></div>
         <div className="pick-grid bonus-grid">
           {ALL_BONUS.map((b) => {
             const on = hand.flowers.includes(b);

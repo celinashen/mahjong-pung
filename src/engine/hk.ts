@@ -4,7 +4,9 @@
 import {
   Decomposition, HandInput, WinContext, allTiles, counts, decompose, isConcealed, isPungLike, validate,
 } from './hand';
-import { isDragon, isHonor, isSuited, isTermOrHonor, isTerminal, isWind, suitOf, tileName, windTile } from './tiles';
+import { isDragon, isHonor, isSuited, isTermOrHonor, isTerminal, isWind, suitOf, windTile } from './tiles';
+import { Lang, MESSAGES, Messages } from './i18n';
+import { HK_DESC_ZH } from './descZh';
 import { ScoreResult, ScoredFan, fanTotal } from './types';
 
 interface FanDef { en: string; zh: string; fan: number; desc: string }
@@ -60,7 +62,7 @@ export const HK_DEFAULTS: HkOptions = { minimumFan: 3, allowSevenPairs: true };
 
 type Item = { id: HkFan; fan: number; count: number; why?: string };
 
-function scoreDecomposition(hand: HandInput, ctx: WinContext, d: Decomposition): Item[] {
+function scoreDecomposition(hand: HandInput, ctx: WinContext, d: Decomposition, M: Messages): Item[] {
   const items: Item[] = [];
   const push = (id: HkFan, why?: string, fan = HK_FANS[id].fan, count = 1) => items.push({ id, fan, count, why });
   const tiles = allTiles(hand);
@@ -98,15 +100,15 @@ function scoreDecomposition(hand: HandInput, ctx: WinContext, d: Decomposition):
   const dragonPungs = pungs.filter((s) => isDragon(s.tile));
   if (dragonPungs.length === 3) push('bigThreeDragons');
   else if (dragonPungs.length === 2 && pair !== null && isDragon(pair)) push('smallThreeDragons');
-  else dragonPungs.forEach((s) => push('dragon', `Triplet of ${tileName(s.tile)}.`));
+  else dragonPungs.forEach((s) => push('dragon', M.tripletOf(s.tile)));
 
   // ---- winds
   const windPungs = pungs.filter((s) => isWind(s.tile));
   if (windPungs.length === 4) push('bigFourWinds');
   else if (windPungs.length === 3 && pair !== null && isWind(pair)) push('smallFourWinds');
   else {
-    if (windPungs.some((s) => s.tile === seatT)) push('seatWind', `Triplet of ${tileName(seatT)}.`);
-    if (windPungs.some((s) => s.tile === roundT)) push('roundWind', `Triplet of ${tileName(roundT)}.`);
+    if (windPungs.some((s) => s.tile === seatT)) push('seatWind', M.tripletOf(seatT));
+    if (windPungs.some((s) => s.tile === roundT)) push('roundWind', M.tripletOf(roundT));
   }
 
   // ---- flush
@@ -127,7 +129,7 @@ function scoreDecomposition(hand: HandInput, ctx: WinContext, d: Decomposition):
       : tiles.every(isTermOrHonor) ? 'mixedTerminals' : null;
     if (typeFan) {
       // Each of these already includes All Triplets' 3 fan; don't count it twice.
-      if (allConcealed) push(typeFan, 'All Triplets is already counted inside All Concealed Triplets.', HK_FANS[typeFan].fan - 3);
+      if (allConcealed) push(typeFan, M.allTripletsInside, HK_FANS[typeFan].fan - 3);
       else push(typeFan);
     } else if (!allConcealed && !sets.every((s) => s.kind === 'kong')) {
       push('allTriplets');
@@ -141,17 +143,18 @@ function scoreDecomposition(hand: HandInput, ctx: WinContext, d: Decomposition):
   if (fl.length === 8) push('eightFlowers');
   else if (fl.length === 0) push('noFlowers');
   else {
-    for (const [group, label] of [[[0, 1, 2, 3], 'flowers'], [[4, 5, 6, 7], 'seasons']] as const) {
+    for (const [group, isFlower] of [[[0, 1, 2, 3], true], [[4, 5, 6, 7], false]] as const) {
       const held = fl.filter((b) => (group as readonly number[]).includes(b));
-      if (held.length === 4) push('fullFlowerSet', `All four ${label}.`);
-      else if (held.includes(group[ctx.seatWind])) push('seatFlower', `Your seat is ${['East', 'South', 'West', 'North'][ctx.seatWind]} (#${ctx.seatWind + 1}) and you hold ${label} #${ctx.seatWind + 1}.`);
+      if (held.length === 4) push('fullFlowerSet', M.allFourBonus(isFlower));
+      else if (held.includes(group[ctx.seatWind])) push('seatFlower', M.seatBonus(ctx.seatWind, isFlower));
     }
   }
 
   return items;
 }
 
-export function scoreHk(hand: HandInput, ctx: WinContext, options: HkOptions = HK_DEFAULTS): ScoreResult {
+export function scoreHk(hand: HandInput, ctx: WinContext, options: HkOptions = HK_DEFAULTS, lang: Lang = 'en'): ScoreResult {
+  const M = MESSAGES[lang];
   const base: ScoreResult = {
     variant: 'hk', fans: [], total: 0, rawTotal: 0, unit: 'fan',
     minimum: options.minimumFan, meetsMinimum: false, payout: [], notes: [],
@@ -165,16 +168,16 @@ export function scoreHk(hand: HandInput, ctx: WinContext, options: HkOptions = H
     const id: HkFan = hand.flowers.length === 8 ? 'eightFlowers' : 'sevenFlowers';
     items = [{ id, fan: HK_FANS[id].fan, count: 1 }];
   } else {
-    const err = validate(hand);
+    const err = validate(hand, lang);
     if (err) return { ...base, error: err };
     const decomps = decompose(hand, ctx, { allowQuadPairs: false, knitted: false })
       .filter((d) => d.form !== 'sevenPairs' || options.allowSevenPairs);
     if (decomps.length === 0) {
-      return { ...base, error: "These tiles don't form a winning hand. Check for a missing or extra tile." };
+      return { ...base, error: M.notAWin };
     }
     let best: { d: Decomposition; items: Item[]; score: number } | null = null;
     for (const d of decomps) {
-      const its = scoreDecomposition(hand, ctx, d);
+      const its = scoreDecomposition(hand, ctx, d, M);
       const score = its.reduce((a, i) => a + i.fan * i.count, 0);
       if (!best || score > best.score) best = { d, items: its, score };
     }
@@ -187,12 +190,13 @@ export function scoreHk(hand: HandInput, ctx: WinContext, options: HkOptions = H
   for (const it of items) {
     const key = `${it.id}:${it.fan}`;
     const def = HK_FANS[it.id];
+    const desc = lang === 'zh' ? HK_DESC_ZH[it.id] : def.desc;
     const prev = merged.get(key);
     if (prev) {
       prev.count += it.count;
-      if (it.why) prev.why += ` ${it.why}`;
+      if (it.why) prev.why += `${M.sentenceGap}${it.why}`;
     } else {
-      merged.set(key, { id: it.id, en: def.en, zh: def.zh, points: it.fan, count: it.count, why: it.why ? `${def.desc} ${it.why}` : def.desc });
+      merged.set(key, { id: it.id, en: def.en, zh: def.zh, points: it.fan, count: it.count, why: it.why ? `${desc}${M.sentenceGap}${it.why}` : desc });
     }
   }
   const fans = [...merged.values()].sort((a, b) => b.points - a.points);
@@ -200,14 +204,14 @@ export function scoreHk(hand: HandInput, ctx: WinContext, options: HkOptions = H
   const totalFan = Math.min(raw, HK_LIMIT);
   const pts = HK_POINTS[totalFan];
   const notes: string[] = [];
-  if (raw > HK_LIMIT) notes.push(`Hand is worth ${raw} fan, capped at the ${HK_LIMIT}-fan limit.`);
-  if (raw === 0) notes.push('Chicken hand (雞糊) — a win with no scoring features.');
+  if (raw > HK_LIMIT) notes.push(M.capped(raw, HK_LIMIT));
+  if (raw === 0) notes.push(M.chicken);
   const meets = totalFan >= options.minimumFan;
-  if (!meets) notes.push(`Your table needs at least ${options.minimumFan} fan to declare a win. This hand has ${totalFan}.`);
+  if (!meets) notes.push(M.hkMinimum(options.minimumFan, totalFan));
 
   const payout = ctx.selfDrawn
-    ? [`Self-pick: each of the other 3 players pays you ${pts}.`, `You collect ${pts * 3} in total.`]
-    : [`Discarder pays all: the player who discarded pays you ${pts * 2} (2 × ${pts}).`];
+    ? M.hkSelfPick(pts)
+    : M.hkDiscard(pts);
 
   return { ...base, fans, total: totalFan, rawTotal: raw, meetsMinimum: meets, decomposition, payout, notes };
 }

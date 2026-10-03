@@ -1,6 +1,7 @@
 import { useEffect, useReducer } from 'react';
+import { defaultLang } from './i18n';
 import {
-  Bonus, HK_DEFAULTS, HandInput, HkOptions, Meld, Tile, Variant, WinContext, Wind, allTiles, counts,
+  Bonus, HK_DEFAULTS, HandInput, HkOptions, Lang, Meld, Tile, Variant, WinContext, Wind, allTiles, counts,
 } from './engine';
 
 export type PickMode = 'tile' | 'chow' | 'pung' | 'kong' | 'ckong';
@@ -20,6 +21,7 @@ export interface WinFlags {
 /** Survives "New hand" and reloads. */
 export interface Prefs {
   variant: Variant;
+  lang: Lang;
   seatWind: Wind;
   roundWind: Wind;
   hk: HkOptions;
@@ -46,7 +48,7 @@ const NO_FLAGS: WinFlags = {
 };
 
 export const EMPTY_HAND: HandState = { tiles: [], winning: null, melds: [], flowers: [], win: NO_FLAGS };
-const DEFAULT_PREFS: Prefs = { variant: 'hk', seatWind: 0, roundWind: 0, hk: HK_DEFAULTS };
+const DEFAULT_PREFS: Prefs = { variant: 'hk', lang: 'en', seatWind: 0, roundWind: 0, hk: HK_DEFAULTS };
 
 export type Action =
   | { type: 'variant'; variant: Variant }
@@ -174,13 +176,13 @@ export function reducer(s: AppState, a: Action): AppState {
 const KEY = 'pung.v1';
 
 function load(): AppState {
-  const fallback: AppState = { prefs: DEFAULT_PREFS, hand: EMPTY_HAND, mode: 'tile' };
+  const fallback: AppState = { prefs: { ...DEFAULT_PREFS, lang: defaultLang() }, hand: EMPTY_HAND, mode: 'tile' };
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return fallback;
     const saved = JSON.parse(raw) as Partial<AppState>;
     return {
-      prefs: { ...DEFAULT_PREFS, ...saved.prefs, hk: { ...HK_DEFAULTS, ...saved.prefs?.hk } },
+      prefs: { ...fallback.prefs, ...saved.prefs, hk: { ...HK_DEFAULTS, ...saved.prefs?.hk } },
       hand: { ...EMPTY_HAND, ...saved.hand, win: { ...NO_FLAGS, ...saved.hand?.win } },
       mode: 'tile',
     };
