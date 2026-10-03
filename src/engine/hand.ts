@@ -1,4 +1,5 @@
 import { Bonus, Tile, TILE_COUNT, Wind, isHonor, isSuited, rankOf, suitOf, isTermOrHonor } from './tiles';
+import { Lang, MESSAGES } from './i18n';
 
 export type MeldKind = 'chow' | 'pung' | 'kong';
 
@@ -84,17 +85,14 @@ export function counts(tiles: Tile[]): number[] {
 /** Tiles needed in the hidden hand for the current number of melds. */
 export const expectedHidden = (hand: HandInput) => 14 - 3 * hand.melds.length;
 
-export function validate(hand: HandInput): string | null {
+export function validate(hand: HandInput, lang: Lang = 'en'): string | null {
+  const M = MESSAGES[lang];
   const need = expectedHidden(hand);
-  if (hand.melds.length > 4) return 'A hand can have at most 4 sets.';
-  if (hand.tiles.length !== need) {
-    return `Your hand needs ${need} more tile${need === 1 ? '' : 's'} in hand (beyond declared sets) — you have ${hand.tiles.length}.`;
-  }
+  if (hand.melds.length > 4) return M.tooManySets;
+  if (hand.tiles.length !== need) return M.needTiles(need, hand.tiles.length);
   const c = counts(allTiles(hand));
-  if (c.some((n) => n > 4)) return 'You have more than 4 copies of a tile.';
-  if (hand.winningTile === null || !hand.tiles.includes(hand.winningTile)) {
-    return 'Tap a tile in your hand to mark it as the winning tile.';
-  }
+  if (c.some((n) => n > 4)) return M.tooManyCopies;
+  if (hand.winningTile === null || !hand.tiles.includes(hand.winningTile)) return M.markWinning;
   return null;
 }
 

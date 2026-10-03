@@ -7,8 +7,10 @@ import {
 } from './hand';
 import {
   GREEN, Tile, WHITE, isDragon, isHonor, isSuited, isTermOrHonor, isTerminal, isWind,
-  rankOf, suitOf, tileName, windTile,
+  rankOf, suitOf, windTile,
 } from './tiles';
+import { Lang, MESSAGES, Messages, tileLabel } from './i18n';
+import { MCR_DESC_ZH } from './descZh';
 import { ScoreResult, ScoredFan, fanTotal } from './types';
 
 interface FanDef { en: string; zh: string; pts: number; desc: string }
@@ -158,8 +160,6 @@ function add(found: Found, id: McrFan, why?: string) {
   found.set(id, f);
 }
 
-const chowName = (t: Tile) => `${rankOf(t)}-${rankOf(t) + 1}-${rankOf(t) + 2} ${suitName(t)}`;
-const suitName = (t: Tile) => ['Characters', 'Dots', 'Bamboo'][suitOf(t)];
 
 // ---------------------------------------------------------------------------
 // Chow / pung combination fans with the "account once" and "non-identical" principles.
@@ -251,19 +251,20 @@ function bestEdges(items: Tile[], fanOf: (a: Tile, b: Tile) => McrFan | null, de
 
 const comboScore = (c: Combo) => c.fans.reduce((a, [f]) => a + MCR_FANS[f].pts, 0);
 
-function chowCombos(chows: Tile[], pair: Tile | null): Combo {
+function chowCombos(chows: Tile[], pair: Tile | null, M: Messages): Combo {
   const options: Combo[] = [];
-  const describe2 = (a: Tile, b: Tile) => `${chowName(a)} and ${chowName(b)}`;
+  const chowName = M.chow;
+  const describe2 = M.twoChows;
   if (chows.length === 4) {
     const f4 = fourChowFan(chows, pair);
-    if (f4) options.push({ fans: [[f4, chows.map(chowName).join(', ')]] });
+    if (f4) options.push({ fans: [[f4, M.list(chows.map(chowName))]] });
   }
   if (chows.length >= 3) {
     for (let skip = 0; skip < chows.length; skip++) {
       const trio = chows.length === 4 ? chows.filter((_, i) => i !== skip) : chows;
       const f3 = threeChowFan(trio);
       if (!f3) { if (chows.length === 3) break; continue; }
-      const combo: Combo = { fans: [[f3, trio.map(chowName).join(', ')]] };
+      const combo: Combo = { fans: [[f3, M.list(trio.map(chowName))]] };
       if (chows.length === 4) {
         // The leftover chow may combine once with one chow already used.
         let bestFan: McrFan | null = null;
@@ -294,16 +295,16 @@ function threePungFan(ts: Tile[]): McrFan | null {
   return null;
 }
 
-function pungCombos(pungs: Tile[]): Combo {
-  const name = (t: Tile) => `${rankOf(t)}s of ${suitName(t)}`;
+function pungCombos(pungs: Tile[], M: Messages): Combo {
+  const name = M.pungsOf;
   const options: Combo[] = [];
   const doublePung = (a: Tile, b: Tile): McrFan | null =>
     suitOf(a) !== suitOf(b) && rankOf(a) === rankOf(b) ? 'doublePung' : null;
-  const describe2 = (a: Tile, b: Tile) => `pungs of ${name(a)} and ${name(b)}`;
+  const describe2 = M.twoPungs;
   if (pungs.length === 4) {
     const r = pungs.map(rankOf).sort((x, y) => x - y);
     if (new Set(pungs.map(suitOf)).size === 1 && r[1] - r[0] === 1 && r[2] - r[1] === 1 && r[3] - r[2] === 1)
-      options.push({ fans: [['fourPureShiftedPungs', pungs.map(name).join(', ')]] });
+      options.push({ fans: [['fourPureShiftedPungs', M.list(pungs.map(name))]] });
   }
   if (pungs.length >= 3) {
     const trios = pungs.length === 4 ? pungs.map((_, skip) => skip) : [-1];
@@ -311,7 +312,7 @@ function pungCombos(pungs: Tile[]): Combo {
       const trio = pungs.filter((_, i) => i !== skip);
       const f3 = threePungFan(trio);
       if (!f3) continue;
-      const combo: Combo = { fans: [[f3, trio.map(name).join(', ')]] };
+      const combo: Combo = { fans: [[f3, M.list(trio.map(name))]] };
       if (skip >= 0) {
         const k = trio.findIndex((t) => doublePung(pungs[skip], t));
         if (k >= 0) combo.fans.push(['doublePung', describe2(pungs[skip], trio[k])]);
@@ -328,7 +329,9 @@ function pungCombos(pungs: Tile[]): Combo {
 const REVERSIBLE = new Set([9, 10, 11, 12, 13, 16, 17, 19, 21, 22, 23, 25, 26, WHITE]);
 const GREENS = new Set([19, 20, 21, 23, 25, GREEN]);
 
-function scoreDecomposition(hand: HandInput, ctx: WinContext, d: Decomposition, uniqueWait: boolean): Found {
+function scoreDecomposition(hand: HandInput, ctx: WinContext, d: Decomposition, uniqueWait: boolean, lang: Lang): Found {
+  const M = MESSAGES[lang];
+  const name = (t: Tile) => tileLabel(t, lang);
   const found: Found = new Map();
   const tiles = allTiles(hand);
   const win = hand.winningTile!;
@@ -346,7 +349,7 @@ function scoreDecomposition(hand: HandInput, ctx: WinContext, d: Decomposition, 
   if (d.form === 'honorsKnitted') {
     const greater = tiles.filter(isHonor).length === 7;
     add(found, greater ? 'greaterHonorsKnitted' : 'lesserHonorsKnitted');
-    if (!greater && hasKnittedStraight(tiles)) add(found, 'knittedStraight', 'All nine knitted tiles are present.');
+    if (!greater && hasKnittedStraight(tiles)) add(found, 'knittedStraight', M.knittedPresent);
   }
   if (d.form === 'knittedStraight') add(found, 'knittedStraight');
   if (d.form === 'sevenPairs') {
@@ -362,21 +365,21 @@ function scoreDecomposition(hand: HandInput, ctx: WinContext, d: Decomposition, 
   const dragonPungs = pungs.filter((s) => isDragon(s.tile));
   if (windPungs.length === 4) add(found, 'bigFourWinds');
   else if (windPungs.length === 3 && pair !== null && isWind(pair)) add(found, 'littleFourWinds');
-  else if (windPungs.length === 3) add(found, 'bigThreeWinds', windPungs.map((s) => tileName(s.tile)).join(', '));
+  else if (windPungs.length === 3) add(found, 'bigThreeWinds', M.list(windPungs.map((s) => name(s.tile))));
   const windFanUsesAll = windPungs.length >= 3;
 
   if (dragonPungs.length === 3) add(found, 'bigThreeDragons');
   else if (dragonPungs.length === 2 && pair !== null && isDragon(pair)) add(found, 'littleThreeDragons');
-  else if (dragonPungs.length === 2) add(found, 'twoDragonPungs', dragonPungs.map((s) => tileName(s.tile)).join(' and '));
-  else if (dragonPungs.length === 1) add(found, 'dragonPung', `Pung of ${tileName(dragonPungs[0].tile)}.`);
+  else if (dragonPungs.length === 2) add(found, 'twoDragonPungs', M.and(name(dragonPungs[0].tile), name(dragonPungs[1].tile)));
+  else if (dragonPungs.length === 1) add(found, 'dragonPung', M.pungOf(dragonPungs[0].tile));
 
-  if (pungs.some((s) => s.tile === round)) add(found, 'prevalentWind', `Pung of ${tileName(round)}, the round wind.`);
-  if (pungs.some((s) => s.tile === seat)) add(found, 'seatWind', `Pung of ${tileName(seat)}, your seat wind.`);
+  if (pungs.some((s) => s.tile === round)) add(found, 'prevalentWind', M.roundWindPung(round));
+  if (pungs.some((s) => s.tile === seat)) add(found, 'seatWind', M.seatWindPung(seat));
 
   for (const s of pungs) {
-    if (isTerminal(s.tile)) add(found, 'pungTermHonor', `Pung of ${tileName(s.tile)}.`);
+    if (isTerminal(s.tile)) add(found, 'pungTermHonor', M.pungOf(s.tile));
     else if (isWind(s.tile) && !windFanUsesAll && s.tile !== seat && s.tile !== round)
-      add(found, 'pungTermHonor', `Pung of ${tileName(s.tile)} (not your seat or round wind).`);
+      add(found, 'pungTermHonor', M.otherWindPung(s.tile));
   }
 
   // ---- kongs & concealed pungs
@@ -388,11 +391,11 @@ function scoreDecomposition(hand: HandInput, ctx: WinContext, d: Decomposition, 
   else if (ck === 2) add(found, 'twoConcealedKongs');
   else if (mk === 2) add(found, 'twoMeldedKongs');
   else if (ck === 1 && mk === 1) add(found, 'meldedConcealedKongs');
-  else if (ck === 1) add(found, 'concealedKong', `Concealed kong of ${tileName(kongs[0].tile)}.`);
-  else if (mk === 1) add(found, 'meldedKong', `Melded kong of ${tileName(kongs[0].tile)}.`);
+  else if (ck === 1) add(found, 'concealedKong', M.concealedKong(kongs[0].tile));
+  else if (mk === 1) add(found, 'meldedKong', M.meldedKong(kongs[0].tile));
 
   const concealedPungs = pungs.filter((s) => s.concealed);
-  const cpWhy = concealedPungs.map((s) => tileName(s.tile)).join(', ');
+  const cpWhy = M.list(concealedPungs.map((s) => name(s.tile)));
   if (concealedPungs.length === 4) add(found, 'fourConcealedPungs', cpWhy);
   else if (concealedPungs.length === 3) add(found, 'threeConcealedPungs', cpWhy);
   else if (concealedPungs.length === 2) add(found, 'twoConcealedPungs', cpWhy);
@@ -403,17 +406,17 @@ function scoreDecomposition(hand: HandInput, ctx: WinContext, d: Decomposition, 
     add(found, 'allChows');
 
   // ---- chow and pung combinations
-  for (const [fan, why] of chowCombos(chows.map((s) => s.tile), pair).fans) add(found, fan, why);
-  for (const [fan, why] of pungCombos(pungs.filter((s) => isSuited(s.tile)).map((s) => s.tile)).fans) add(found, fan, why);
+  for (const [fan, why] of chowCombos(chows.map((s) => s.tile), pair, M).fans) add(found, fan, why);
+  for (const [fan, why] of pungCombos(pungs.filter((s) => isSuited(s.tile)).map((s) => s.tile), M).fans) add(found, fan, why);
 
   // ---- suits
   const suits = suitsUsed(tiles);
   const honors = tiles.some(isHonor);
-  if (suits.size === 1 && !honors) add(found, 'fullFlush', `Every tile is ${suitName(tiles[0])}.`);
-  if (suits.size === 1 && honors) add(found, 'halfFlush', `${suitName(tiles.find(isSuited)!)} plus honours.`);
+  if (suits.size === 1 && !honors) add(found, 'fullFlush', M.everyTile(suitOf(tiles[0])));
+  if (suits.size === 1 && honors) add(found, 'halfFlush', M.suitPlusHonours(suitOf(tiles.find(isSuited)!)));
   if (suits.size === 2) {
     const missing = [0, 1, 2].find((x) => !suits.has(x))!;
-    add(found, 'oneVoidedSuit', `No ${['Characters', 'Dots', 'Bamboo'][missing]}.`);
+    add(found, 'oneVoidedSuit', M.noSuit(missing));
   }
   if (!honors) add(found, 'noHonors');
   if (suits.size === 3 && tiles.some(isWind) && tiles.some(isDragon)) add(found, 'allTypes');
@@ -448,7 +451,7 @@ function scoreDecomposition(hand: HandInput, ctx: WinContext, d: Decomposition, 
 
   // ---- tile hog: four of a tile used outside a kong
   const nonKong = counts(tiles.filter((t) => !kongs.some((k) => k.tile === t)));
-  nonKong.forEach((n, t) => { if (n === 4 && isSuited(t)) add(found, 'tileHog', `All four ${tileName(t)}.`); });
+  nonKong.forEach((n, t) => { if (n === 4 && isSuited(t)) add(found, 'tileHog', M.allFour(t)); });
 
   // ---- nine gates
   if (hand.melds.length === 0 && suits.size === 1 && !honors) {
@@ -468,14 +471,14 @@ function scoreDecomposition(hand: HandInput, ctx: WinContext, d: Decomposition, 
   if (ctx.lastTile) add(found, ctx.selfDrawn ? 'lastTileDraw' : 'lastTileClaim');
   if (ctx.kongReplacement) add(found, 'outWithReplacement');
   if (ctx.robbingKong) add(found, 'robbingKong');
-  if (ctx.lastOfKind) add(found, 'lastTile', `${tileName(win)} was the last one available.`);
+  if (ctx.lastOfKind) add(found, 'lastTile', M.lastOne(win));
 
   // ---- waits (only when the hand was waiting on exactly one tile)
   if (uniqueWait) {
     const w = waitKind(d, win);
-    if (w === 'edge') add(found, 'edgeWait', `Won on ${tileName(win)}.`);
-    if (w === 'closed') add(found, 'closedWait', `Won on ${tileName(win)}.`);
-    if (w === 'single') add(found, 'singleWait', `Won on ${tileName(win)} for the pair.`);
+    if (w === 'edge') add(found, 'edgeWait', M.wonOn(win));
+    if (w === 'closed') add(found, 'closedWait', M.wonOn(win));
+    if (w === 'single') add(found, 'singleWait', M.wonOnPair(win));
   }
 
   applyExclusions(found);
@@ -501,24 +504,26 @@ const total = (found: Found) => [...found].reduce((a, [id, f]) => a + MCR_FANS[i
 
 export const MCR_MINIMUM = 8;
 
-export function scoreMcr(hand: HandInput, ctx: WinContext): ScoreResult {
+export function scoreMcr(hand: HandInput, ctx: WinContext, lang: Lang = 'en'): ScoreResult {
+  const M = MESSAGES[lang];
+  const desc = (id: McrFan) => (lang === 'zh' ? MCR_DESC_ZH[id] : MCR_FANS[id].desc);
   const base: ScoreResult = {
     variant: 'mcr', fans: [], total: 0, rawTotal: 0, unit: 'points',
     minimum: MCR_MINIMUM, meetsMinimum: false, payout: [], notes: [],
   };
-  const err = validate(hand);
+  const err = validate(hand, lang);
   if (err) return { ...base, error: err };
 
   const opts = { allowQuadPairs: true, knitted: true };
   const decomps = decompose(hand, ctx, opts);
   if (decomps.length === 0) {
-    return { ...base, error: "These tiles don't form a winning hand. Check for a missing or extra tile." };
+    return { ...base, error: M.notAWin };
   }
   const uniqueWait = waitingTiles(hand, opts).length === 1;
 
   let best: { d: Decomposition; found: Found; score: number } | null = null;
   for (const d of decomps) {
-    const found = scoreDecomposition(hand, ctx, d, uniqueWait);
+    const found = scoreDecomposition(hand, ctx, d, uniqueWait, lang);
     const score = total(found);
     if (!best || score > best.score) best = { d, found, score };
   }
@@ -527,22 +532,22 @@ export function scoreMcr(hand: HandInput, ctx: WinContext): ScoreResult {
   const fans: ScoredFan[] = [...found]
     .map(([id, f]) => ({
       id, en: MCR_FANS[id].en, zh: MCR_FANS[id].zh, points: MCR_FANS[id].pts, count: f.count,
-      why: f.why.length ? `${MCR_FANS[id].desc} ${dedupe(f.why).join(' ')}` : MCR_FANS[id].desc,
+      why: [desc(id), ...dedupe(f.why)].join(M.sentenceGap),
     }))
     .sort((a, b) => b.points - a.points);
 
   const flowers = hand.flowers.length;
-  if (flowers) fans.push({ id: 'flowerTiles', ...pick(MCR_FANS.flowerTiles), points: 1, count: flowers, why: MCR_FANS.flowerTiles.desc });
+  if (flowers) fans.push({ id: 'flowerTiles', ...pick(MCR_FANS.flowerTiles), points: 1, count: flowers, why: desc('flowerTiles') });
 
   const withoutFlowers = fanTotal(fans) - flowers;
   const totalPts = fanTotal(fans);
   const meets = withoutFlowers >= MCR_MINIMUM;
   const notes: string[] = [];
-  if (!meets) notes.push(`MCR needs at least ${MCR_MINIMUM} points (not counting flowers) to declare a win. This hand has ${withoutFlowers}.`);
+  if (!meets) notes.push(M.mcrMinimum(MCR_MINIMUM, withoutFlowers));
 
   const payout = ctx.selfDrawn
-    ? [`Each of the other 3 players pays you ${totalPts} + 8 = ${totalPts + 8}.`, `You collect ${(totalPts + 8) * 3} in total.`]
-    : [`The discarder pays you ${totalPts} + 8 = ${totalPts + 8}.`, 'The other two players pay you 8 each.', `You collect ${totalPts + 24} in total.`];
+    ? M.mcrSelf(totalPts)
+    : M.mcrDiscard(totalPts);
 
   return { ...base, fans, total: totalPts, rawTotal: totalPts, meetsMinimum: meets, decomposition: d, payout, notes };
 }

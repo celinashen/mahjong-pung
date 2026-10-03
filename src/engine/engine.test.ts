@@ -132,3 +132,14 @@ describe('Hong Kong', () => {
     expect(score('hk', hand('123m456p789s234s56z', '6z'), ctx()).error).toBeDefined();
   });
 });
+
+describe('Chinese output', () => {
+  it('localises explanations, notes and payouts', () => {
+    const r = score('hk', hand('123456m999m555z11z', '1z'), ctx({ selfDrawn: true }), undefined, 'zh');
+    expect(r.fans.find((f) => f.id === 'dragon')!.why).toContain('紅中刻子');
+    expect(r.payout[0]).toContain('其他三家');
+    const m = score('mcr', hand('12345678923455m', '9m'), ctx(), undefined, 'zh');
+    expect(m.fans.find((f) => f.id === 'fullFlush')!.why).toContain('萬子');
+    expect(score('mcr', hand('123m', '1m'), ctx(), undefined, 'zh').error).toMatch(/暗牌/);
+  });
+});

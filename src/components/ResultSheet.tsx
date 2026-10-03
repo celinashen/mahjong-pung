@@ -1,19 +1,28 @@
 import { CSSProperties, useEffect, useMemo, useState } from 'react';
-import { HK_POINTS, ScoreResult, TileSet, setTiles } from '../engine';
+import { HK_POINTS, Lang, ScoreResult, TileSet, setTiles } from '../engine';
+import { useLang } from '../i18n';
+import { Bi } from './Bi';
 import { Sheet } from './Sheet';
 import { TileFace } from './TileFace';
 
-const FORM_LABEL: Record<string, string> = {
-  sevenPairs: 'Seven pairs',
-  thirteenOrphans: 'Thirteen orphans',
-  honorsKnitted: 'Honours & knitted tiles',
-  knittedStraight: 'Knitted straight + set + pair',
+type Text = { en: string; zh: string };
+
+const FORM_LABEL: Record<string, Text> = {
+  sevenPairs: { en: 'Seven pairs', zh: '七對' },
+  thirteenOrphans: { en: 'Thirteen orphans', zh: '十三么' },
+  honorsKnitted: { en: 'Honours & knitted tiles', zh: '全不靠' },
+  knittedStraight: { en: 'Knitted straight + set + pair', zh: '組合龍＋一組＋將' },
 };
 
-function setLabel(s: TileSet) {
-  const kind = { chow: 'Chow', pung: 'Pung', kong: 'Kong', pair: 'Pair' }[s.kind];
-  const open = s.kind !== 'pair' && !s.concealed ? ' · claimed' : s.kind === 'kong' ? ' · concealed' : '';
-  return `${kind}${open}`;
+const SET_KIND = {
+  en: { chow: 'Chow', pung: 'Pung', kong: 'Kong', pair: 'Pair', claimed: 'claimed', concealed: 'concealed', wonHere: 'won here' },
+  zh: { chow: '順子', pung: '刻子', kong: '槓', pair: '眼', claimed: '明', concealed: '暗', wonHere: '和這組' },
+};
+
+function setLabel(s: TileSet, lang: Lang) {
+  const L = SET_KIND[lang];
+  const open = s.kind !== 'pair' && !s.concealed ? ` · ${L.claimed}` : s.kind === 'kong' ? ` · ${L.concealed}` : '';
+  return `${L[s.kind]}${open}`;
 }
 
 /** Counts up from 0 to `target` for a little drama. */
@@ -61,19 +70,21 @@ interface Props {
 }
 
 export function ResultSheet({ result, onClose, onNewHand }: Props) {
+  const { lang, tx } = useLang();
   const hk = result.variant === 'hk';
   const d = result.decomposition;
+  const unit = hk ? tx('fan', '番') : tx('pts', '分');
   const shown = useCountUp(result.error ? 0 : result.total);
 
   return (
-    <Sheet label="Score" onClose={onClose}>
+    <Sheet label={tx('Score', '計番結果')} onClose={onClose}>
 
         {result.error ? (
           <div className="result-error">
-            <div className="oops" aria-hidden>🀫</div>
-            <h2>Can't score this yet</h2>
+            <div className="oops" aria-hidden><TileFace tile={31} /></div>
+            <h2>{tx("Can't score this yet", '未能計番')}</h2>
             <p>{result.error}</p>
-            <button className="btn btn-primary" onClick={onClose}>Back to hand</button>
+            <button className="btn btn-primary" onClick={onClose}>{tx('Back to hand', '返回手牌')}</button>
           </div>
         ) : (
           <>
@@ -81,11 +92,17 @@ export function ResultSheet({ result, onClose, onNewHand }: Props) {
               {result.meetsMinimum && <Confetti />}
               <div className={`seal-score ${result.meetsMinimum ? '' : 'dud'}`}>
                 <span className="score-num">{shown}</span>
-                <span className="score-unit">{hk ? '番 fan' : '分 points'}</span>
+                <span className="score-unit">{hk ? <Bi en="fan" zh="番" /> : <Bi en="points" zh="分" />}</span>
               </div>
-              {hk && <div className="score-meta">Worth <b>{HK_POINTS[result.total]}</b> points on the payment table</div>}
+              {hk && (
+                <div className="score-meta">
+                  {tx('Worth ', '番數表上值 ')}<b>{HK_POINTS[result.total]}</b>{tx(' points on the payment table', ' 分')}
+                </div>
+              )}
               <div className={`verdict ${result.meetsMinimum ? 'ok' : 'bad'}`}>
-                {result.meetsMinimum ? 'Valid win' : `Below the ${result.minimum}-${hk ? 'fan' : 'point'} minimum`}
+                {result.meetsMinimum
+                  ? tx('Valid win', '可以和牌')
+                  : tx(`Below the ${result.minimum}-${hk ? 'fan' : 'point'} minimum`, `未夠 ${result.minimum} ${unit}起和`)}
               </div>
             </div>
 
@@ -93,31 +110,34 @@ export function ResultSheet({ result, onClose, onNewHand }: Props) {
               <ul className="notes">{result.notes.map((n) => <li key={n}>{n}</li>)}</ul>
             )}
 
-            <h3 className="sheet-h">Why you scored this</h3>
+            <h3 className="sheet-h">{tx('Why you scored this', '番種明細')}</h3>
             {result.fans.length === 0 ? (
-              <p className="hint">No scoring features — a chicken hand.</p>
+              <p className="hint">{tx('No scoring features — a chicken hand.', '沒有番種 —— 雞糊。')}</p>
             ) : (
               <ul className="fan-list">
                 {result.fans.map((f, i) => (
                   <li key={`${f.id}-${f.points}`} className="fan" style={{ animationDelay: `${0.15 + i * 0.06}s` }}>
                     <div className="fan-top">
-                      <span className="fan-name">{f.en} <span className="zh-sub">{f.zh}</span>{f.count > 1 && <span className="times"> ×{f.count}</span>}</span>
+                      <span className="fan-name"><Bi en={f.en} zh={f.zh} />{f.count > 1 && <span className="times"> ×{f.count}</span>}</span>
                       <span className="fan-pts">+{f.points * f.count}</span>
                     </div>
                     <p className="fan-why">{f.why}</p>
                   </li>
                 ))}
                 <li className="fan fan-total">
-                  <span>Total{hk && result.rawTotal > result.total ? ` (capped from ${result.rawTotal})` : ''}</span>
-                  <span>{result.total} {hk ? 'fan' : 'pts'}</span>
+                  <span>
+                    {tx('Total', '合共')}
+                    {hk && result.rawTotal > result.total ? tx(` (capped from ${result.rawTotal})`, `（原本 ${result.rawTotal} 番，爆棚）`) : ''}
+                  </span>
+                  <span>{result.total} {unit}</span>
                 </li>
               </ul>
             )}
 
             {d && (
               <>
-                <h3 className="sheet-h">How your hand was read</h3>
-                {FORM_LABEL[d.form] && <p className="hint small">{FORM_LABEL[d.form]}</p>}
+                <h3 className="sheet-h">{tx('How your hand was read', '牌型拆解')}</h3>
+                {FORM_LABEL[d.form] && <p className="hint small">{FORM_LABEL[d.form][lang]}</p>}
                 {d.sets.length > 0 && (
                   <div className="read-sets">
                     {d.sets.map((s, i) => (
@@ -125,21 +145,21 @@ export function ResultSheet({ result, onClose, onNewHand }: Props) {
                         <div className="meld-tiles">
                           {setTiles(s).map((t, k) => <TileFace key={k} tile={t} size="sm" />)}
                         </div>
-                        <div className="meld-label">{setLabel(s)}{i === d.winSet ? ' · won here' : ''}</div>
+                        <div className="meld-label">{setLabel(s, lang)}{i === d.winSet ? ` · ${SET_KIND[lang].wonHere}` : ''}</div>
                       </div>
                     ))}
                   </div>
                 )}
-                {d.sets.length === 0 && <p className="hint small">Special hand — scored as a whole.</p>}
+                {d.sets.length === 0 && <p className="hint small">{tx('Special hand — scored as a whole.', '特殊牌型 —— 整副計番。')}</p>}
               </>
             )}
 
-            <h3 className="sheet-h">Payment</h3>
+            <h3 className="sheet-h">{tx('Payment', '找數')}</h3>
             <ul className="payout">{result.payout.map((p) => <li key={p}>{p}</li>)}</ul>
 
             <div className="sheet-actions">
-              <button className="btn" onClick={onClose}>Edit hand</button>
-              <button className="btn btn-primary" onClick={onNewHand}>New hand</button>
+              <button className="btn" onClick={onClose}>{tx('Edit hand', '修改手牌')}</button>
+              <button className="btn btn-primary" onClick={onNewHand}>{tx('New hand', '新一局')}</button>
             </div>
           </>
         )}
