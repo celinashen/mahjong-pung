@@ -60,7 +60,7 @@ export function RulesSheet({ initial, onClose }: { initial: Variant; onClose: ()
           <><b>TL;DR</b> — Collect 14 tiles as <b>4 sets + 1 pair</b>. Draw a tile, discard a tile, and grab other players'
             discards when they finish a set. The fancier your hand, the more {hk ? 'fan' : 'points'} you score
             {hk ? ' — most tables need at least 3 fan to win.' : ' — you need at least 8 points (not counting flowers) to win.'}</>,
-          <><b>一句講晒</b> —— 湊齊<b>四組牌加一對眼</b>，共 14 張。每輪摸一張、打一張，別人打出你要的牌可以上、碰、槓。{''}
+          <><b>一句講晒</b> —— 湊齊<b>四組牌加一對眼</b>，共 14 張。每輪摸一張、打一張，別人打出你要的牌可以吃、碰、槓。{''}
             {'牌型越難，'}{hk ? '番數' : '分數'}越高{hk ? ' —— 一般最少要 3 番才可以食糊。' : ' —— 最少要 8 分（花牌不計）才可以和牌。'}</>,
         )}
       </div>
@@ -68,7 +68,7 @@ export function RulesSheet({ initial, onClose }: { initial: Variant; onClose: ()
       <Section title={tx('🀄 The goal', '🀄 目標')} open>
         <p>{tx(<>A winning hand is <b>four sets and a pair</b> (14 tiles). A set is one of:</>, <>和牌要有<b>四組牌加一對眼</b>（共 14 張）。牌組有：</>)}</p>
         <ul className="defs">
-          <li><Tiles tiles={[11, 12, 13]} /><span>{tx(<><b>Chow</b> 上 — a run of 3 in one suit.</>, <><b>順子（上）</b>—— 同一花色三張相連。</>)}</span></li>
+          <li><Tiles tiles={[11, 12, 13]} /><span>{tx(<><b>Chow</b> 吃 — a run of 3 in one suit.</>, <><b>順子（吃）</b>—— 同一花色三張相連。</>)}</span></li>
           <li><Tiles tiles={[31, 31, 31]} /><span>{tx(<><b>Pung</b> 碰 — 3 of the same tile.</>, <><b>刻子（碰）</b>—— 三張一樣的牌。</>)}</span></li>
           <li><Tiles tiles={[8, 8, 8, 8]} /><span>{tx(<><b>Kong</b> 槓 — 4 of the same. Draw an extra replacement tile.</>, <><b>槓</b> —— 四張一樣的牌，要補摸一張。</>)}</span></li>
           <li><Tiles tiles={[27, 27]} /><span>{tx(<><b>Pair</b> 眼 — 2 of the same (the "eyes").</>, <><b>眼（將）</b>—— 兩張一樣的牌。</>)}</span></li>
@@ -136,17 +136,17 @@ export function RulesSheet({ initial, onClose }: { initial: Variant; onClose: ()
         </ol>
       </Section>
 
-      <Section title={tx('✋ Claiming discards', '✋ 上、碰、槓、食糊')}>
+      <Section title={tx('✋ Claiming discards', '✋ 吃、碰、槓、食糊')}>
         <ul>
-          <li>{tx(<><b>Chow</b> — only from the player right before you (on your left).</>, <><b>上</b> —— 只可以上上家（左手邊）打出的牌。</>)}</li>
+          <li>{tx(<><b>Chow</b> — only from the player right before you (on your left).</>, <><b>吃</b> —— 只可以吃上家（左手邊）打出的牌。</>)}</li>
           <li>{tx(<><b>Pung / Kong</b> — from anyone, even if it isn't your turn.</>, <><b>碰／槓</b> —— 任何人打出的牌都可以，不用等輪到你。</>)}</li>
           <li>{tx(
             <><b>Win</b> — from anyone. If two people want the same tile: a win beats a pung or kong, and both beat a chow.</>,
-            <><b>食糊</b> —— 任何人打出的牌都可以。兩人同時要同一張牌：食糊優先於碰／槓，碰／槓優先於上。</>,
+            <><b>食糊</b> —— 任何人打出的牌都可以。兩人同時要同一張牌：食糊優先於碰／槓，碰／槓優先於吃。</>,
           )}</li>
           <li>{tx(
             <>A claimed set goes face up (<span className="tag-inline tag-revealed">revealed</span>). If you never claim anything, your hand stays <span className="tag-inline tag-concealed">concealed</span>, which is worth extra.</>,
-            <>上、碰、槓回來的牌要打開（<span className="tag-inline tag-revealed">明牌</span>）。完全沒有上碰的手牌是<span className="tag-inline tag-concealed">門前清</span>，可以多計番。</>,
+            <>吃、碰、槓回來的牌要打開（<span className="tag-inline tag-revealed">明牌</span>）。完全沒有吃碰的手牌是<span className="tag-inline tag-concealed">門前清</span>，可以多計番。</>,
           )}</li>
         </ul>
       </Section>

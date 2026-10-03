@@ -86,7 +86,7 @@ export default function App() {
             <span>
               <b>{prefs.variant === 'hk' ? tx('New to Hong Kong mahjong?', '第一次玩港式麻雀？') : tx('New to Chinese mahjong?', '第一次玩國標麻將？')}</b>
               <br />
-              {tx('Set-up, turns, claiming and how to score.', '開局、輪流摸打、上碰槓及計番方法。')}
+              {tx('Set-up, turns, claiming and how to score.', '開局、輪流摸打、吃碰槓及計番方法。')}
             </span>
           </button>
           <p className="footnote">

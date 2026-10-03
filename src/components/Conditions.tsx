@@ -71,8 +71,8 @@ export function Conditions({ state, dispatch }: { state: AppState; dispatch: (a:
       <p className="status-line">
         <span className={`dot ${concealed ? 'dot-on' : ''}`} />
         {concealed
-          ? tx('Concealed hand — no sets claimed from other players.', '門前清 —— 沒有上碰明槓。')
-          : tx('Open hand — you claimed at least one set.', '已開牌 —— 有上碰或明槓。')}
+          ? tx('Concealed hand — no sets claimed from other players.', '門前清 —— 沒有吃碰明槓。')
+          : tx('Open hand — you claimed at least one set.', '已開牌 —— 有吃碰或明槓。')}
       </p>
 
       <div className="toggles">

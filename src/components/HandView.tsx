@@ -7,7 +7,7 @@ import { BonusFace, TileFace } from './TileFace';
 
 const MELD_LABEL = {
   en: { chow: 'Chow', pung: 'Pung', kong: 'Kong', hidden: 'Hidden kong' },
-  zh: { chow: '上', pung: '碰', kong: '明槓', hidden: '暗槓' },
+  zh: { chow: '吃', pung: '碰', kong: '明槓', hidden: '暗槓' },
 } as const;
 
 function meldTiles(m: Meld) {
@@ -78,10 +78,10 @@ export function HandView({ hand, dispatch }: Props) {
       <div className="zone zone-revealed">
         <div className="zone-head">
           <span className="zone-tag tag-revealed">{tx('Revealed 明', '明牌')}</span>
-          <span className="zone-desc">{tx('Sets you claimed from other players', '從其他人上、碰、槓回來的牌組')}</span>
+          <span className="zone-desc">{tx('Sets you claimed from other players', '從其他人吃、碰、槓回來的牌組')}</span>
         </div>
         {revealed.length === 0 ? (
-          <p className="zone-empty">{tx('None — use Chow / Pung / Kong below for claimed sets.', '沒有 —— 用下面的「上／碰／槓」加入明牌。')}</p>
+          <p className="zone-empty">{tx('None — use Chow / Pung / Kong below for claimed sets.', '沒有 —— 用下面的「吃／碰／槓」加入明牌。')}</p>
         ) : (
           <div className="melds">
             {revealed.map(({ m, i }) => <MeldView key={i} meld={m} onRemove={() => removeMeld(i)} />)}

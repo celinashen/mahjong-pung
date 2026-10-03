@@ -8,7 +8,7 @@ export const HK_DESC_ZH: Record<HkFan, string> = {
   selfPick: '和牌的那張是自己從牌牆摸回來的。',
   kongReplacement: '開槓後補回來的牌令你和牌（取代自摸）。',
   doubleKongReplacement: '連續開兩次槓，用第二張補牌和牌（取代自摸）。',
-  concealedHand: '沒有上、碰或明槓過任何牌。',
+  concealedHand: '沒有吃、碰或明槓過任何牌。',
   robbingKong: '別人加槓的那張牌正是你要的，搶槓和牌。',
   moonUnderSea: '用牌牆最後一張牌或最後一張打出的牌和牌。',
   dragon: '一組三元牌（中、發、白）刻子，每組 1 番。',

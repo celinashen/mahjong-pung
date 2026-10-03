@@ -16,7 +16,7 @@ const GROUPS: Array<{ kind: 'concealed' | 'revealed'; label: Text; modes: Array<
     kind: 'revealed',
     label: { en: 'Revealed 明', zh: '明牌' },
     modes: [
-      { mode: 'chow', label: { en: 'Chow', zh: '上' } },
+      { mode: 'chow', label: { en: 'Chow', zh: '吃' } },
       { mode: 'pung', label: { en: 'Pung', zh: '碰' } },
       { mode: 'kong', label: { en: 'Kong', zh: '明槓' } },
     ],
@@ -26,7 +26,7 @@ const GROUPS: Array<{ kind: 'concealed' | 'revealed'; label: Text; modes: Array<
 const MODE_HINT: Record<PickMode, Text> = {
   tile: { en: 'Adds one tile to the concealed part of your hand.', zh: '加一張牌到你的暗牌。' },
   ckong: { en: 'Four of a kind you declared from your own hand. Your hand stays concealed.', zh: '自己摸齊四張後開的槓，手牌仍算門前清。' },
-  chow: { en: 'A run you claimed from the player before you. Tap its lowest tile (3 → 3-4-5).', zh: '從上家上回來的順子。點最小的一張（三 → 三四五）。' },
+  chow: { en: 'A run you claimed from the player before you. Tap its lowest tile (3 → 3-4-5).', zh: '從上家吃回來的順子。點最小的一張（三 → 三四五）。' },
   pung: { en: 'Three of a kind you claimed from a discard.', zh: '碰別人打出的牌組成的刻子。' },
   kong: { en: 'Four of a kind you claimed, or a pung you upgraded.', zh: '槓別人打出的牌，或碰後加槓。' },
 };
