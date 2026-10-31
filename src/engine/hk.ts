@@ -106,7 +106,7 @@ function scoreDecomposition(hand: HandInput, ctx: WinContext, d: Decomposition, 
   const windPungs = pungs.filter((s) => isWind(s.tile));
   if (windPungs.length === 4) push('bigFourWinds');
   else if (windPungs.length === 3 && pair !== null && isWind(pair)) push('smallFourWinds');
-  else {
+  else if (!ctx.ignoreWinds) {
     if (windPungs.some((s) => s.tile === seatT)) push('seatWind', M.tripletOf(seatT));
     if (windPungs.some((s) => s.tile === roundT)) push('roundWind', M.tripletOf(roundT));
   }
@@ -140,13 +140,14 @@ function scoreDecomposition(hand: HandInput, ctx: WinContext, d: Decomposition, 
 
   // ---- flowers
   const fl = hand.flowers;
+  if (ctx.ignoreFlowers) return items;
   if (fl.length === 8) push('eightFlowers');
   else if (fl.length === 0) push('noFlowers');
   else {
     for (const [group, isFlower] of [[[0, 1, 2, 3], true], [[4, 5, 6, 7], false]] as const) {
       const held = fl.filter((b) => (group as readonly number[]).includes(b));
       if (held.length === 4) push('fullFlowerSet', M.allFourBonus(isFlower));
-      else if (held.includes(group[ctx.seatWind])) push('seatFlower', M.seatBonus(ctx.seatWind, isFlower));
+      else if (!ctx.ignoreWinds && held.includes(group[ctx.seatWind])) push('seatFlower', M.seatBonus(ctx.seatWind, isFlower));
     }
   }
 

@@ -1,10 +1,14 @@
 import { useEffect, useReducer } from 'react';
 import { defaultLang } from './i18n';
 import {
-  Bonus, HK_DEFAULTS, HandInput, HkOptions, Lang, Meld, Tile, Variant, WinContext, Wind, allTiles, counts,
+  Bonus, HK_DEFAULTS, HandInput, HandReading, HkOptions, Lang, Meld, ScoreResult, Tile, Variant, WinContext, Wind,
+  allTiles, counts, readHand, readingHas, score,
 } from './engine';
 
-export type PickMode = 'tile' | 'chow' | 'pung' | 'kong' | 'ckong';
+export const VARIANTS: Array<{ id: Variant; en: string; zh: string }> = [
+  { id: 'hk', en: 'Hong Kong', zh: '港式' },
+  { id: 'mcr', en: 'Chinese', zh: '國標' },
+];
 
 export interface WinFlags {
   selfDrawn: boolean;
@@ -25,13 +29,18 @@ export interface Prefs {
   seatWind: Wind;
   roundWind: Wind;
   hk: HkOptions;
+  /** Game mode: does this table count flowers / winds? */
+  flowers: boolean;
+  winds: boolean;
 }
 
 /** Cleared by "New hand". */
 export interface HandState {
+  /** Every tile in the hand, kongs as four. Sets are worked out after submitting. */
   tiles: Tile[];
+  /** Sets the player says were claimed from others. Anything else stays concealed. */
+  revealed: Meld[];
   winning: Tile | null;
-  melds: Meld[];
   flowers: Bonus[];
   win: WinFlags;
 }
@@ -39,7 +48,6 @@ export interface HandState {
 export interface AppState {
   prefs: Prefs;
   hand: HandState;
-  mode: PickMode;
 }
 
 const NO_FLAGS: WinFlags = {
@@ -47,55 +55,75 @@ const NO_FLAGS: WinFlags = {
   robbingKong: false, lastOfKind: false, heavenly: false, earthly: false, humanly: false,
 };
 
-export const EMPTY_HAND: HandState = { tiles: [], winning: null, melds: [], flowers: [], win: NO_FLAGS };
-const DEFAULT_PREFS: Prefs = { variant: 'hk', lang: 'en', seatWind: 0, roundWind: 0, hk: HK_DEFAULTS };
+export const EMPTY_HAND: HandState = { tiles: [], revealed: [], winning: null, flowers: [], win: NO_FLAGS };
+const DEFAULT_PREFS: Prefs = {
+  variant: 'hk', lang: 'en', seatWind: 0, roundWind: 0, hk: HK_DEFAULTS, flowers: true, winds: true,
+};
 
 export type Action =
   | { type: 'variant'; variant: Variant }
   | { type: 'prefs'; patch: Partial<Prefs> }
   | { type: 'hkOptions'; patch: Partial<HkOptions> }
-  | { type: 'mode'; mode: PickMode }
-  | { type: 'pick'; tile: Tile }
-  | { type: 'removeTiles'; indices: number[]; winning: boolean }
-  | { type: 'makeWinning'; index: number }
-  | { type: 'removeMeld'; index: number }
+  | { type: 'addTile'; tile: Tile }
+  | { type: 'removeTile'; tile: Tile }
+  | { type: 'revealed'; set: Meld; on: boolean }
+  | { type: 'winning'; tile: Tile }
   | { type: 'toggleFlower'; bonus: Bonus }
   | { type: 'flag'; key: keyof WinFlags; value: boolean }
   | { type: 'newHand' };
 
-export function toHandInput(h: HandState): HandInput {
-  return {
-    tiles: h.winning === null ? h.tiles : [...h.tiles, h.winning],
-    melds: h.melds,
-    winningTile: h.winning,
-    flowers: h.flowers,
-  };
+/** Every way this table can read the hand; empty if it isn't a winning shape. */
+export function readings(h: HandState, prefs: Prefs): HandReading[] {
+  const mcr = prefs.variant === 'mcr';
+  return readHand(h.tiles, { allowQuadPairs: mcr, knitted: mcr })
+    .filter((r) => mcr || r.form !== 'sevenPairs' || prefs.hk.allowSevenPairs);
+}
+
+/** The inputs left to score: more than one only when it's unclear which four-of-a-kind is the kong. */
+export function toHandInputs(h: HandState, prefs: Prefs): HandInput[] {
+  const flowers = prefs.flowers ? h.flowers : [];
+  const fits = readings(h, prefs).filter((r) => readingHas(r, h.revealed));
+  // Not a complete hand: a win on 7 or 8 flowers, or something for the engine to reject.
+  if (fits.length === 0) return [{ tiles: h.tiles, melds: h.revealed, winningTile: h.winning, flowers }];
+
+  const out = new Map<string, HandInput>();
+  for (const r of fits) {
+    const hiddenKongs: Meld[] = r.sets
+      .filter((s) => s.kind === 'kong' && !h.revealed.some((m) => m.kind === 'kong' && m.tile === s.tile))
+      .map((s) => ({ kind: 'kong', tile: s.tile, concealed: true }));
+    const melds = [...h.revealed, ...hiddenKongs];
+    const tiles = [...h.tiles];
+    for (const t of allTiles({ tiles: [], melds, winningTile: null, flowers: [] })) tiles.splice(tiles.indexOf(t), 1);
+    out.set(tiles.sort((a, b) => a - b).join(), { tiles, melds, winningTile: h.winning, flowers });
+  }
+  return [...out.values()];
+}
+
+/** Tiles that could have won the hand: anything not locked into a revealed set or kong. */
+export function winningChoices(h: HandState, prefs: Prefs): Tile[] {
+  const tiles = toHandInputs(h, prefs).flatMap((i) => i.tiles);
+  return [...new Set(tiles)].sort((a, b) => a - b);
 }
 
 export function toContext(s: AppState): WinContext {
-  return { ...s.hand.win, seatWind: s.prefs.seatWind, roundWind: s.prefs.roundWind };
+  const { seatWind, roundWind, flowers, winds } = s.prefs;
+  return { ...s.hand.win, seatWind, roundWind, ignoreFlowers: !flowers, ignoreWinds: !winds };
 }
 
-/** Hidden tiles still needed (beyond declared sets) for a 14-tile hand. */
-export const hiddenNeeded = (h: HandState) => 14 - 3 * h.melds.length;
-export const hiddenCount = (h: HandState) => h.tiles.length + (h.winning === null ? 0 : 1);
-
-/** How many more copies of each tile can still be used. */
-export function remaining(h: HandState): number[] {
-  return counts(allTiles(toHandInput(h))).map((n) => 4 - n);
+/** Score the hand, taking the best result if the kongs can be read more than one way. */
+export function scoreHand(s: AppState, lang: Lang): ScoreResult {
+  const { hand, prefs } = s;
+  const inputs = toHandInputs(hand, prefs);
+  const usable = inputs.filter((i) => hand.winning === null || i.tiles.includes(hand.winning));
+  return (usable.length > 0 ? usable : inputs)
+    .map((i) => score(prefs.variant, i, toContext(s), prefs.hk, lang))
+    .reduce((best, r) => (r.total > best.total ? r : best));
 }
 
-/** Can `tile` be added in the current mode? */
-export function canPick(h: HandState, mode: PickMode, tile: Tile): boolean {
-  const left = remaining(h);
-  if (mode === 'tile') return left[tile] >= 1 && hiddenCount(h) < hiddenNeeded(h);
-  // A new set needs room for 3 more tiles within the 14.
-  if (h.melds.length >= 4 || hiddenCount(h) > hiddenNeeded(h) - 3) return false;
-  if (mode === 'chow') {
-    return tile < 27 && (tile % 9) <= 6 && left[tile] >= 1 && left[tile + 1] >= 1 && left[tile + 2] >= 1;
-  }
-  if (mode === 'pung') return left[tile] >= 3;
-  return left[tile] >= 4; // kong / concealed kong
+/** Can `tile` join the hand? Past 14 tiles, each extra one must belong to a kong. */
+export function canAdd(tiles: Tile[], tile: Tile): boolean {
+  const c = counts([...tiles, tile]);
+  return c[tile] <= 4 && tiles.length + 1 <= 14 + c.filter((n) => n === 4).length;
 }
 
 function setFlag(win: WinFlags, key: keyof WinFlags, value: boolean): WinFlags {
@@ -119,44 +147,33 @@ function setFlag(win: WinFlags, key: keyof WinFlags, value: boolean): WinFlags {
   return w;
 }
 
+/** Answers tied to the exact tiles or sets no longer hold once those change. */
+const clearAnswers = (h: HandState): HandState => ({ ...h, revealed: [], winning: null });
+
 export function reducer(s: AppState, a: Action): AppState {
   const h = s.hand;
   switch (a.type) {
     case 'variant':
-      return { ...s, prefs: { ...s.prefs, variant: a.variant } };
+      return { ...s, prefs: { ...s.prefs, variant: a.variant }, hand: clearAnswers(h) };
     case 'prefs':
       return { ...s, prefs: { ...s.prefs, ...a.patch } };
     case 'hkOptions':
       return { ...s, prefs: { ...s.prefs, hk: { ...s.prefs.hk, ...a.patch } } };
-    case 'mode':
-      return { ...s, mode: a.mode };
-    case 'pick': {
-      if (!canPick(h, s.mode, a.tile)) return s;
-      if (s.mode === 'tile') {
-        // The tile that completes the hand is assumed to be the winning tile.
-        const completes = hiddenCount(h) + 1 === hiddenNeeded(h) && h.winning === null;
-        return { ...s, hand: completes ? { ...h, winning: a.tile } : { ...h, tiles: [...h.tiles, a.tile] } };
-      }
-      const meld: Meld = {
-        kind: s.mode === 'ckong' ? 'kong' : s.mode,
-        tile: a.tile,
-        concealed: s.mode === 'ckong',
-      };
-      return { ...s, hand: { ...h, melds: [...h.melds, meld] } };
+    case 'addTile':
+      if (!canAdd(h.tiles, a.tile)) return s;
+      return { ...s, hand: { ...clearAnswers(h), tiles: [...h.tiles, a.tile] } };
+    case 'removeTile': {
+      const i = h.tiles.indexOf(a.tile);
+      if (i < 0) return s;
+      return { ...s, hand: { ...clearAnswers(h), tiles: h.tiles.filter((_, j) => j !== i) } };
     }
-    case 'removeTiles':
-      return {
-        ...s,
-        hand: { ...h, tiles: h.tiles.filter((_, i) => !a.indices.includes(i)), winning: a.winning ? null : h.winning },
-      };
-    case 'makeWinning': {
-      const tiles = [...h.tiles];
-      const [picked] = tiles.splice(a.index, 1);
-      if (h.winning !== null) tiles.push(h.winning);
-      return { ...s, hand: { ...h, tiles, winning: picked } };
+    case 'revealed': {
+      const i = h.revealed.findIndex((m) => m.kind === a.set.kind && m.tile === a.set.tile);
+      const revealed = a.on ? [...h.revealed, a.set] : h.revealed.filter((_, j) => j !== i);
+      return { ...s, hand: { ...h, revealed, winning: null } };
     }
-    case 'removeMeld':
-      return { ...s, hand: { ...h, melds: h.melds.filter((_, i) => i !== a.index) } };
+    case 'winning':
+      return { ...s, hand: { ...h, winning: a.tile } };
     case 'toggleFlower': {
       const has = h.flowers.includes(a.bonus);
       const flowers = has ? h.flowers.filter((b) => b !== a.bonus) : [...h.flowers, a.bonus].sort();
@@ -165,7 +182,7 @@ export function reducer(s: AppState, a: Action): AppState {
     case 'flag':
       return { ...s, hand: { ...h, win: setFlag(h.win, a.key, a.value) } };
     case 'newHand':
-      return { ...s, hand: EMPTY_HAND, mode: 'tile' };
+      return { ...s, hand: EMPTY_HAND };
   }
 }
 
@@ -176,15 +193,17 @@ export function reducer(s: AppState, a: Action): AppState {
 const KEY = 'pung.v1';
 
 function load(): AppState {
-  const fallback: AppState = { prefs: { ...DEFAULT_PREFS, lang: defaultLang() }, hand: EMPTY_HAND, mode: 'tile' };
+  const fallback: AppState = { prefs: { ...DEFAULT_PREFS, lang: defaultLang() }, hand: EMPTY_HAND };
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return fallback;
     const saved = JSON.parse(raw) as Partial<AppState>;
     return {
       prefs: { ...fallback.prefs, ...saved.prefs, hk: { ...HK_DEFAULTS, ...saved.prefs?.hk } },
-      hand: { ...EMPTY_HAND, ...saved.hand, win: { ...NO_FLAGS, ...saved.hand?.win } },
-      mode: 'tile',
+      // Hands saved before tiles went flat have no `revealed`; keep the prefs, drop the hand.
+      hand: saved.hand?.revealed
+        ? { ...EMPTY_HAND, ...saved.hand, win: { ...NO_FLAGS, ...saved.hand.win } }
+        : EMPTY_HAND,
     };
   } catch {
     return fallback;

@@ -14,21 +14,23 @@ npm run build
 ## Features
 
 ### P0 (built)
-1. Choose a variant — Hong Kong or Chinese (MCR). Remembered across "New hand" and reloads.
-2. Build a hand from a tile picker: single tiles, claimed Chow / Pung / Kong, and concealed kongs.
-3. Mark the winning tile (defaults to the tile that completes the hand).
-4. Add flowers and seasons.
-5. Set win conditions: self-drawn vs discard, seat wind, round wind, plus variant-specific
-   flags (last tile, kong replacement, robbing the kong, last of its kind, Heaven/Earth/Man).
-   Concealed/open is worked out from the sets you claimed.
-6. HK table rules: minimum fan (0/1/3) and whether Seven Pairs is allowed.
-7. Calculate: total fan/points, every scoring combo with its English + Chinese name, points,
+1. Game mode (top bar, opens its own sheet): Hong Kong or Chinese (MCR), whether the table counts
+   flowers and winds, and the HK table rules (minimum fan 0/1/3, Seven Pairs allowed).
+   Remembered across "New hand" and reloads.
+2. Build a hand by dragging tiles up from a big, swipeable rail that's split by suit (a tap adds
+   a tile too). Kongs are entered as all four tiles, so the hand grows past 14.
+3. Remove a tile by tapping it, or by dragging it into the delete area that appears at the bottom.
+4. Submit, and the hand is grouped into sets. Then one question at a time, skipping any that don't
+   apply: which sets were revealed, the last tile, how you got it (self-drawn vs discard plus
+   variant-specific flags), flowers, and seat and round wind. An ambiguous hand offers every set
+   it could contain, and picking one rules out the sets that can't go with it.
+5. Calculate: total fan/points, every scoring combo with its English + Chinese name, points,
    and why it applied; how the hand was split into sets; and who pays what.
-8. New hand: clears the hand, keeps the variant, winds and table rules.
-9. Multi-select tiles in your hand to remove several at once.
-10. "How to play" sheet (the ? button): TL;DR, set-up, turns, claiming, scoring and payment,
+6. New hand: clears the hand, keeps the game mode and winds.
+7. HK wins on 7 or 8 flowers can be claimed without a complete hand.
+8. "How to play" sheet (the ? button): TL;DR, set-up, turns, claiming, scoring and payment,
     plus the full scoring list for each variant (generated from the engine's tables).
-11. English / Traditional Chinese toggle (EN / 中 in the top bar): UI, scoring explanations,
+9. English / Traditional Chinese toggle (EN / 中 in the top bar): UI, scoring explanations,
     payouts and the rulebook. Labels show the other language as a small subtitle. Remembered
     across reloads; first visit follows the phone's language.
 
@@ -43,6 +45,7 @@ npm run build
 
 ## Code map
 - `src/engine/` — pure TypeScript scoring: `hand.ts` (hand model, decomposition, waits),
-  `hk.ts`, `mcr.ts`, tests in `engine.test.ts`.
-- `src/state.ts` — app state, reducer, localStorage persistence.
+  `hk.ts`, `mcr.ts`, tests in `engine.test.ts` (and `src/state.test.ts`).
+- `src/state.ts` — app state, reducer, localStorage persistence, flat hand → scoring input.
+- `src/useTileDrag.ts` — touch and mouse drag and drop.
 - `src/components/` — UI.
