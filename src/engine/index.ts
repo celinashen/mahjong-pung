@@ -12,7 +12,7 @@ export { HK_DEFAULTS, HK_POINTS, HK_LIMIT, HK_FANS } from './hk';
 export type { HkOptions } from './hk';
 export { MCR_MINIMUM, MCR_FANS } from './mcr';
 export { HK_DESC_ZH, MCR_DESC_ZH } from './descZh';
-export { tileLabel, suitLabel, windLabel } from './i18n';
+export { MESSAGES, tileLabel, suitLabel, windLabel } from './i18n';
 export type { Lang } from './i18n';
 
 export function score(variant: Variant, hand: HandInput, ctx: WinContext, hk: HkOptions = HK_DEFAULTS, lang: Lang = 'en'): ScoreResult {

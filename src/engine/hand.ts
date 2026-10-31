@@ -34,6 +34,10 @@ export interface WinContext {
   heavenly: boolean;
   earthly: boolean;
   humanly: boolean;
+  /** Table plays without seat/round winds: no wind bonuses, and no seat flowers. */
+  ignoreWinds?: boolean;
+  /** Table plays without flowers: they score nothing, not even "No Flowers". */
+  ignoreFlowers?: boolean;
 }
 
 export type SetKind = 'chow' | 'pung' | 'kong' | 'pair';
@@ -194,7 +198,7 @@ export interface DecomposeOptions {
  * Every structural reading of a hand, including which set the winning tile
  * landed in (that affects concealed pungs and wait types).
  */
-export function decompose(hand: HandInput, ctx: WinContext, opts: DecomposeOptions): Decomposition[] {
+export function decompose(hand: HandInput, ctx: Pick<WinContext, 'selfDrawn'>, opts: DecomposeOptions): Decomposition[] {
   const c = counts(hand.tiles);
   const win = hand.winningTile!;
   const needSets = 4 - hand.melds.length;
@@ -267,6 +271,71 @@ export function decompose(hand: HandInput, ctx: WinContext, opts: DecomposeOptio
   }
 
   return out;
+}
+
+// ---------------------------------------------------------------------------
+// Reading a flat list of tiles (the player hasn't said what's revealed yet)
+
+/** One way to split a whole hand. `sets` includes the pair; kongs are marked concealed. */
+export interface HandReading {
+  form: HandForm;
+  sets: TileSet[];
+}
+
+function choose<T>(xs: T[], n: number): T[][] {
+  if (n === 0) return [[]];
+  return xs.flatMap((x, i) => choose(xs.slice(i + 1), n - 1).map((rest) => [x, ...rest]));
+}
+
+/**
+ * Every distinct reading of a hand given as a flat list, kongs as four tiles.
+ * Each tile past 14 means one kong, so four-of-a-kinds decide what's possible.
+ */
+export function readHand(tiles: Tile[], opts: DecomposeOptions): HandReading[] {
+  const c = counts(tiles);
+  const quads = c.flatMap((n, t) => (n === 4 ? [t] : []));
+  const kongs = tiles.length - 14;
+  if (kongs < 0 || kongs > 4 || kongs > quads.length) return [];
+  const out = new Map<string, HandReading>();
+  for (const picked of choose(quads, kongs)) {
+    const melds: Meld[] = picked.map((tile) => ({ kind: 'kong', tile, concealed: true }));
+    const hidden = tiles.filter((t) => !picked.includes(t));
+    const hand: HandInput = { tiles: hidden, melds, winningTile: hidden[0], flowers: [] };
+    for (const { form, sets } of decompose(hand, { selfDrawn: true }, opts)) {
+      const key = `${form}|${sets.map(setKey).sort().join()}`;
+      if (!out.has(key)) out.set(key, { form, sets });
+    }
+  }
+  return [...out.values()];
+}
+
+const setKey = (s: { kind: string; tile: Tile }) => `${s.kind}:${s.tile}`;
+
+/** Does this reading hold every set in `picked`, counting repeats? */
+export function readingHas(reading: HandReading, picked: Meld[]): boolean {
+  const left = reading.sets.map(setKey);
+  return picked.every((m) => {
+    const i = left.indexOf(setKey(m));
+    if (i >= 0) left.splice(i, 1);
+    return i >= 0;
+  });
+}
+
+/** Every set (never the pair) any reading contains, repeated as often as one reading holds it. */
+export function setChoices(readings: HandReading[]): Meld[] {
+  const most = new Map<string, { kind: MeldKind; tile: Tile; n: number }>();
+  for (const r of readings) {
+    const here = new Map<string, number>();
+    for (const s of r.sets) {
+      if (s.kind === 'pair') continue;
+      const n = (here.get(setKey(s)) ?? 0) + 1;
+      here.set(setKey(s), n);
+      if (n > (most.get(setKey(s))?.n ?? 0)) most.set(setKey(s), { kind: s.kind, tile: s.tile, n });
+    }
+  }
+  return [...most.values()]
+    .sort((a, b) => a.tile - b.tile || a.kind.localeCompare(b.kind))
+    .flatMap(({ kind, tile, n }) => Array.from({ length: n }, () => ({ kind, tile, concealed: false })));
 }
 
 export function setContains(s: TileSet, t: Tile): boolean {

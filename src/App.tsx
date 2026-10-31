@@ -1,23 +1,23 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Variant, score } from './engine';
-import { Bi } from './components/Bi';
-import { Conditions } from './components/Conditions';
-import { HandView } from './components/HandView';
+import { MESSAGES } from './engine';
+import { GameModeSheet } from './components/GameModeSheet';
+import { HandBuilder } from './components/HandBuilder';
+import { Questions } from './components/Questions';
 import { ResultSheet } from './components/ResultSheet';
 import { RulesSheet } from './components/RulesSheet';
-import { TilePicker } from './components/TilePicker';
 import { LangContext } from './i18n';
-import { hiddenCount, hiddenNeeded, toContext, toHandInput, useAppState } from './state';
+import { VARIANTS, readings, scoreHand, useAppState } from './state';
 
-const VARIANTS: Array<{ id: Variant; en: string; zh: string }> = [
-  { id: 'hk', en: 'Hong Kong', zh: '港式' },
-  { id: 'mcr', en: 'Chinese', zh: '國標' },
-];
+/** Which questions are open: the full set, or just flowers for a win on 7 or 8 flowers. */
+type Asking = 'hand' | 'flowerWin' | null;
 
 export default function App() {
   const [state, dispatch] = useAppState();
   const [showResult, setShowResult] = useState(false);
   const [rulesOpen, setRulesOpen] = useState(false);
+  const [modeOpen, setModeOpen] = useState(false);
+  const [asking, setAsking] = useState<Asking>(null);
+  const [notAWin, setNotAWin] = useState(false);
   const { prefs, hand } = state;
   const lang = prefs.lang;
   const zh = lang === 'zh';
@@ -30,18 +30,35 @@ export default function App() {
 
   // Recomputed on demand so the result follows the language setting.
   const result = useMemo(
-    () => (showResult ? score(prefs.variant, toHandInput(hand), toContext(state), prefs.hk, lang) : null),
-    [showResult, prefs.variant, prefs.hk, hand, state, lang],
+    () => (showResult ? scoreHand(state, lang) : null),
+    [showResult, state, lang],
   );
   const close = useCallback(() => setShowResult(false), []);
   const closeRules = useCallback(() => setRulesOpen(false), []);
+  const closeMode = useCallback(() => setModeOpen(false), []);
+  const closeQuestions = useCallback(() => setAsking(null), []);
+  const finishQuestions = useCallback(() => { setAsking(null); setShowResult(true); }, []);
+  useEffect(() => setNotAWin(false), [hand.tiles, prefs.variant, prefs.hk]);
   const newHand = () => {
     dispatch({ type: 'newHand' });
     setShowResult(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
-  const ready = hand.winning !== null && hiddenCount(hand) === hiddenNeeded(hand);
-  const isEmpty = hand.tiles.length === 0 && hand.winning === null && hand.melds.length === 0 && hand.flowers.length === 0;
+  const submit = () => {
+    if (readings(hand, prefs).length > 0) setAsking('hand');
+    else setNotAWin(true);
+  };
+  const claimFlowerWin = () => {
+    dispatch({ type: 'flag', key: 'selfDrawn', value: true });
+    setAsking('flowerWin');
+  };
+  const complete = hand.tiles.length >= 14;
+  const isEmpty = hand.tiles.length === 0 && hand.flowers.length === 0;
+  const modeSummary = [
+    VARIANTS.find((v) => v.id === prefs.variant)![lang],
+    ...(prefs.flowers ? [] : [tx('No flowers', '不計花')]),
+    ...(prefs.winds ? [] : [tx('No winds', '不計風')]),
+  ].join(' · ');
 
   return (
     <LangContext.Provider value={lang}>
@@ -62,25 +79,18 @@ export default function App() {
             </button>
             <button className="rules-btn" aria-label={tx('How to play', '玩法')} onClick={() => setRulesOpen(true)}>?</button>
           </div>
-          <div className="segmented variant" role="tablist" aria-label={tx('Mahjong variant', '麻雀種類')}>
-            {VARIANTS.map((v) => (
-              <button
-                key={v.id}
-                role="tab"
-                aria-selected={prefs.variant === v.id}
-                className={prefs.variant === v.id ? 'on' : ''}
-                onClick={() => dispatch({ type: 'variant', variant: v.id })}
-              >
-                <Bi en={v.en} zh={v.zh} />
-              </button>
-            ))}
-          </div>
+          <button className="mode-btn" onClick={() => setModeOpen(true)}>
+            <span className="mode-btn-label">{tx('Game mode', '玩法')}</span>
+            <span className="mode-btn-value">{modeSummary}</span>
+            <span className="mode-btn-go" aria-hidden>›</span>
+          </button>
         </header>
 
         <main>
-          <HandView hand={hand} dispatch={dispatch} />
-          <TilePicker hand={hand} mode={state.mode} dispatch={dispatch} />
-          <Conditions state={state} dispatch={dispatch} />
+          <HandBuilder hand={hand} error={notAWin ? MESSAGES[lang].notAWin : null} dispatch={dispatch} />
+          {prefs.variant === 'hk' && prefs.flowers && !complete && (
+            <button className="link-btn" onClick={claimFlowerWin}>{tx('Won with 7 or 8 flowers?', '七搶一或八仙過海？')}</button>
+          )}
           <button className="rules-link" onClick={() => setRulesOpen(true)}>
             <span className="rules-link-icon">?</span>
             <span>
@@ -98,11 +108,15 @@ export default function App() {
 
         <footer className="actionbar">
           <button className="btn" onClick={newHand} disabled={isEmpty}>{tx('New hand', '新一局')}</button>
-          <button className={`btn btn-primary grow${ready ? ' ready' : ''}`} onClick={() => setShowResult(true)}>
-            {tx('Calculate score', '計番！')}
+          <button className={`btn btn-primary grow${complete ? ' ready' : ''}`} disabled={!complete} onClick={submit}>
+            {tx('Submit hand', '提交手牌')}
           </button>
         </footer>
 
+        {asking && (
+          <Questions state={state} dispatch={dispatch} flowerWin={asking === 'flowerWin'} onDone={finishQuestions} onClose={closeQuestions} />
+        )}
+        {modeOpen && <GameModeSheet prefs={prefs} dispatch={dispatch} onClose={closeMode} />}
         {result && <ResultSheet result={result} onClose={close} onNewHand={newHand} />}
         {rulesOpen && <RulesSheet initial={prefs.variant} onClose={closeRules} />}
       </div>

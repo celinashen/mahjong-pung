@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { HandInput, Meld, WinContext, parseTiles, score } from './index';
+import { HandInput, Meld, WinContext, parseTiles, readHand, readingHas, score, setChoices } from './index';
 
 const ctx = (o: Partial<WinContext> = {}): WinContext => ({
   selfDrawn: false, seatWind: 0, roundWind: 0, lastTile: false, kongReplacement: false,
@@ -141,5 +141,88 @@ describe('Chinese output', () => {
     const m = score('mcr', hand('12345678923455m', '9m'), ctx(), undefined, 'zh');
     expect(m.fans.find((f) => f.id === 'fullFlush')!.why).toContain('萬子');
     expect(score('mcr', hand('123m', '1m'), ctx(), undefined, 'zh').error).toMatch(/暗牌/);
+  });
+});
+
+describe('Game modes', () => {
+  it('no flowers drops the No Flowers fan', () => {
+    const h = hand('123456m999m555z11z', '1z');
+    expect(ids(score('hk', h, ctx())).noFlowers).toBe(1);
+    expect(ids(score('hk', h, ctx({ ignoreFlowers: true }))).noFlowers).toBeUndefined();
+  });
+
+  it('no winds drops seat, round and seat-flower fan in HK', () => {
+    const h = hand('123m456p789s111z99p', '9p', [], [0]);
+    const on = ids(score('hk', h, ctx()));
+    expect(on.seatWind).toBe(1);
+    expect(on.roundWind).toBe(1);
+    expect(on.seatFlower).toBe(1);
+    const off = ids(score('hk', h, ctx({ ignoreWinds: true })));
+    expect(off.seatWind).toBeUndefined();
+    expect(off.roundWind).toBeUndefined();
+    expect(off.seatFlower).toBeUndefined();
+  });
+
+  it('no winds keeps wind hands like Big Four Winds', () => {
+    expect(ids(score('hk', hand('111222333444z55m', '5m'), ctx({ ignoreWinds: true }))).bigFourWinds).toBe(1);
+  });
+
+  it('no winds scores an MCR wind pung as an ordinary honour pung', () => {
+    const f = ids(score('mcr', hand('123m456p789s111z99p', '9p'), ctx({ ignoreWinds: true })));
+    expect(f.seatWind).toBeUndefined();
+    expect(f.prevalentWind).toBeUndefined();
+    expect(f.pungTermHonor).toBe(1);
+  });
+});
+
+describe('Reading a flat hand', () => {
+  const hk = { allowQuadPairs: false, knitted: false };
+  const mcr = { allowQuadPairs: true, knitted: true };
+  const names = (ms: Meld[]) => ms.map((m) => `${m.kind}:${m.tile}`);
+
+  it('groups a plain hand into its four sets', () => {
+    const rs = readHand(parseTiles('123m456p789s111z99p'), hk);
+    expect(rs).toHaveLength(1);
+    expect(setChoices(rs)).toHaveLength(4);
+  });
+
+  it('rejects tiles that are not a win', () => {
+    expect(readHand(parseTiles('123m456p789s23s569p'), hk)).toEqual([]);
+    expect(readHand(parseTiles('123m456p'), hk)).toEqual([]);
+  });
+
+  it('offers both readings of an ambiguous hand, and they exclude each other', () => {
+    const rs = readHand(parseTiles('111222333m789p55s'), hk);
+    const choices = setChoices(rs);
+    expect(names(choices)).toEqual(expect.arrayContaining(['pung:0', 'pung:1', 'pung:2', 'chow:0', 'chow:15']));
+    expect(choices.filter((m) => m.kind === 'chow' && m.tile === 0)).toHaveLength(3);
+    const pung: Meld = { kind: 'pung', tile: 0, concealed: false };
+    const chow: Meld = { kind: 'chow', tile: 0, concealed: false };
+    expect(rs.some((r) => readingHas(r, [pung, chow]))).toBe(false);
+    expect(rs.some((r) => readingHas(r, [chow, chow, chow]))).toBe(true);
+  });
+
+  it('treats each tile past 14 as a kong', () => {
+    const rs = readHand(parseTiles('1111m456p789s111z99p'), hk);
+    expect(rs).toHaveLength(1);
+    expect(setChoices(rs).find((m) => m.kind === 'kong')?.tile).toBe(0);
+    expect(rs[0].sets.find((s) => s.kind === 'kong')?.concealed).toBe(true);
+  });
+
+  it('finds which four of a kind is the kong when there are two', () => {
+    const rs = readHand(parseTiles('1111234m11112344p'), hk);
+    expect(rs.length).toBeGreaterThan(0);
+    expect(rs.every((r) => r.sets.filter((s) => s.kind === 'kong').every((s) => s.tile === 0))).toBe(true);
+  });
+
+  it('keeps four of a kind out of a kong in a 14-tile hand', () => {
+    const rs = readHand(parseTiles('1111234m456p789s'), hk);
+    expect(rs.every((r) => r.sets.every((s) => s.kind !== 'kong'))).toBe(true);
+  });
+
+  it('special hands have no sets to reveal', () => {
+    expect(setChoices(readHand(parseTiles('19m19p19s12345677z'), hk))).toEqual([]);
+    expect(setChoices(readHand(parseTiles('1133m5577p2288s11z'), hk))).toEqual([]);
+    expect(setChoices(readHand(parseTiles('147m25p36s1234567z'), mcr))).toEqual([]);
   });
 });

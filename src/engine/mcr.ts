@@ -341,8 +341,8 @@ function scoreDecomposition(hand: HandInput, ctx: WinContext, d: Decomposition, 
   const pair = pairSet?.tile ?? null;
   const pungs = sets.filter(isPungLike);
   const chows = sets.filter((s) => s.kind === 'chow');
-  const seat = windTile(ctx.seatWind);
-  const round = windTile(ctx.roundWind);
+  const seat = ctx.ignoreWinds ? null : windTile(ctx.seatWind);
+  const round = ctx.ignoreWinds ? null : windTile(ctx.roundWind);
 
   // ---- special forms
   if (d.form === 'thirteenOrphans') add(found, 'thirteenOrphans');
@@ -373,8 +373,8 @@ function scoreDecomposition(hand: HandInput, ctx: WinContext, d: Decomposition, 
   else if (dragonPungs.length === 2) add(found, 'twoDragonPungs', M.and(name(dragonPungs[0].tile), name(dragonPungs[1].tile)));
   else if (dragonPungs.length === 1) add(found, 'dragonPung', M.pungOf(dragonPungs[0].tile));
 
-  if (pungs.some((s) => s.tile === round)) add(found, 'prevalentWind', M.roundWindPung(round));
-  if (pungs.some((s) => s.tile === seat)) add(found, 'seatWind', M.seatWindPung(seat));
+  if (round !== null && pungs.some((s) => s.tile === round)) add(found, 'prevalentWind', M.roundWindPung(round));
+  if (seat !== null && pungs.some((s) => s.tile === seat)) add(found, 'seatWind', M.seatWindPung(seat));
 
   for (const s of pungs) {
     if (isTerminal(s.tile)) add(found, 'pungTermHonor', M.pungOf(s.tile));
